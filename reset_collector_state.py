@@ -8,11 +8,13 @@ date_reset = True
 
 custom_date_limit = False
 
-state_archive_path = os.getcwd() + "/data/search_test_3/state_archive/"
+state_archive_path = os.getcwd() + "/data/state_archive/"
 if not os.path.isdir(state_archive_path) : 
     os.makedirs(state_archive_path)
 
-states_path = os.getcwd() + "/data/search_test_3/states/"
+states_path = os.getcwd() + "/data/states/"
+if not os.path.isdir(states_path) : 
+    os.makedirs(states_path)
 
 prev_states = list([name[0] for name in [file.split(".") for file in os.listdir(states_path)] if name[1] == "pkl"])
 if len(prev_states) > 0 : #Load most recent previous state
@@ -23,7 +25,7 @@ if len(prev_states) > 0 : #Load most recent previous state
     # Move most recent to state archive : 
     shutil.move(src = pkl_path, dst = f"{state_archive_path}{most_recent_state}.pkl")
 
-# Remove all players in queue after first 100 
+# Only include first 100 players in the queue 
 state["player_queue"] = state["player_queue"][0:100]
 # Refresh player set 
 state["player_set"] = set()

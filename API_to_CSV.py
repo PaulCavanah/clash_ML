@@ -1,7 +1,7 @@
 
-# produces v4 csv battle data files
+# Produces CSV files with battle data in them
 
-# How this script works keeps track of previous battles/players: 
+# How this script keeps track of previous battles/players: 
 # - Load in player queue, player set, and battle set (if they exist)
 #   - If they don't exist, start with Mohamed Light's player tag
 #   - Else, start with first player tag in the player queue 
@@ -11,7 +11,7 @@
 #       - Add opponent tag to player queue 
 #   - If battle is not in battle set: 
 #       - Add battle to battle set 
-#       - Record some metadata and the player/opponent deck information in a dict 
+#       - Record some metadata and the player/opponent deck information (see below) in a dict 
 #       - Append that dict to a growing list (row list)
 # - Every certain number of battles: 
 #   - Make df from the row list, then save to disk (csv) and flush the row list 
@@ -19,9 +19,7 @@
 #   - The above (csv, player queue, sets ...) will be saved with same datetime/timestamp
 #   - This makes it so that the "state" of the data collection is saved at every cycle along with the data
 
-
-# In this version, all data that can possibly be relevant are included. 
-# The formatting is also drastically changed: 
+# All relevant data are included. 
 
 # Data that are included :
 # Player tag 
@@ -67,7 +65,7 @@ num_battle_limit = 10000 #number of battles to collect for each cycle before sav
 
 import pickle
 # Load data collection state information (player queue, player set, battle set) from pickle files
-states_path = os.getcwd() + "/data/search_test_4/states/"
+states_path = os.getcwd() + "/data/states/"
 if not os.path.isdir(states_path) : 
     os.makedirs(states_path)
 
@@ -89,7 +87,7 @@ else : # No previous states saved
     }
 
 # Directory where csv will be saved
-data_path = os.getcwd() + "/data/search_test_4/data/"
+data_path = os.getcwd() + "/data/raw_data/"
 if not os.path.isdir(data_path) : 
     os.makedirs(data_path)
 
