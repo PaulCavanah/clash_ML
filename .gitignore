@@ -9,6 +9,7 @@ venv/
 
 # Data
 data/
+json/
 
 # Results
 results/
