@@ -56,6 +56,8 @@ num_battle_limit = 10000 #number of battles to collect for each cycle before sav
 
 num_hash_bytes = 12 #this always needs to be 12, or else the hash will be different
 
+local_hash_set = set() #for comparing against games collected only in this session
+
 # Connect to hash db (for keeping track of battles and getting queue): 
 conn = psycopg2.connect(
     host = "localhost",
@@ -157,7 +159,7 @@ while True :
                     p_support_level = battle["team"][0]["supportCards"][0]["level"] + (16 - battle["team"][0]["supportCards"][0]["maxLevel"])
                     o_support_level = battle["opponent"][0]["supportCards"][0]["level"] + (16 - battle["opponent"][0]["supportCards"][0]["maxLevel"])
                 except IndexError: #occurs when support towers are not listed - definitely not a ranked or ladder match
-                    #print(f"Skipping battle of type {battle["gameMode"]["name"]}")
+                    print(f"Skipping battle of type {battle["gameMode"]["name"]}")
                     continue
 
                 # Setup columns: 
@@ -193,15 +195,16 @@ while True :
                 input_str = f"{new_row["game_time"]}|{ordered_tags[0]}|{ordered_tags[1]}".encode("utf-8")
                 digest = hashlib.blake2b(input_str, digest_size = num_hash_bytes).digest()
                 battle_id = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+                battle_collected_in_this_session = battle_id in local_hash_set 
 
                 # Test whether this game occurred before using hash database
                 cur.execute(battle_exist_query, (battle_id, ))
                 battle_in_database = cur.fetchone()[0]
-                if battle_in_database : # don't process this game if it's already present
-                    print("Battle occurred before")
+                if battle_in_database or battle_collected_in_this_session: # don't process this game if it's already present
+                    print("Skipping; battle occurred before")
                     continue
 
-                # Insert battle's data into db 
+                # Insert battle's identity data into db and local hash set
                 db_insert_data = [battle_id, 
                                   new_row["game_time"],
                                   new_row["player_tag"],
@@ -209,6 +212,7 @@ while True :
                                   bool(new_row["player_crowns"] >= new_row["opponent_crowns"])
                 ]
                 cur.execute(insert_query, db_insert_data)
+                local_hash_set.add(battle_id)
                 
                 # Get card information for player and opponent decks 
                 player_deck = [card for card in battle["team"][0]["cards"]]
@@ -250,6 +254,7 @@ while True :
         df.to_csv(data_dir / f"{collection_cycle_timestamp}.csv")
 
         row_list = []
+        local_hash_set = set()
 
     except Exception as e: 
         print(e) 
