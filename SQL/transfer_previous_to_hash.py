@@ -154,3 +154,59 @@ battle_in_database = cur.fetchone()[0]
 print(battle_in_database)
 
 # %%
+# Run a test to get 1000 random opponent tags from the database: 
+
+conn = psycopg2.connect(
+    host = "localhost",
+    database = "hash_db",
+    user = "postgres",
+    password = "Onetwothree123!",
+    port = "5432"
+)
+
+random_select_query = """
+SELECT opponent_tag
+    FROM battles 
+    ORDER BY random()
+    LIMIT 1000
+"""
+
+cur = conn.cursor()
+
+cur.execute(random_select_query)
+random_tags = cur.fetchall()
+
+cur.close()
+conn.close()
+
+#%%
+print(random_tags)
+
+# %%
+# Test getting tags by date 
+
+conn = psycopg2.connect(
+    host = "localhost",
+    database = "hash_db",
+    user = "postgres",
+    password = "Onetwothree123!",
+    port = "5432"
+)
+cur = conn.cursor()
+
+tag_select_query = """
+SELECT DISTINCT battle_time, opponent_tag 
+    FROM battles
+    ORDER BY battle_time DESC
+    LIMIT 10000;
+"""
+
+cur.execute(tag_select_query)
+tags = [out[1] for out in cur.fetchall()]
+
+conn.close()
+cur.close()
+
+print(tags)
+
+# %%
