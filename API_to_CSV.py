@@ -52,7 +52,7 @@ import base64
 data_dir = Path(os.getcwd() + "/data/raw_data/")
 data_dir.mkdir(parents = True, exist_ok = True)
 
-num_battle_limit = 100 #number of battles to collect for each cycle before saving
+num_battle_limit = 10000 #number of battles to collect for each cycle before saving
 
 num_hash_bytes = 12 #this always needs to be 12, or else the hash will be different
 
@@ -157,7 +157,7 @@ while True :
                     p_support_level = battle["team"][0]["supportCards"][0]["level"] + (16 - battle["team"][0]["supportCards"][0]["maxLevel"])
                     o_support_level = battle["opponent"][0]["supportCards"][0]["level"] + (16 - battle["opponent"][0]["supportCards"][0]["maxLevel"])
                 except IndexError: #occurs when support towers are not listed - definitely not a ranked or ladder match
-                    print(f"Skipping battle of type {battle["gameMode"]["name"]}")
+                    #print(f"Skipping battle of type {battle["gameMode"]["name"]}")
                     continue
 
                 # Setup columns: 
@@ -197,7 +197,7 @@ while True :
                 # Test whether this game occurred before using hash database
                 cur.execute(battle_exist_query, (battle_id, ))
                 battle_in_database = cur.fetchone()[0]
-                if not battle_in_database : # don't process this game if it's already present
+                if battle_in_database : # don't process this game if it's already present
                     print("Battle occurred before")
                     continue
 
