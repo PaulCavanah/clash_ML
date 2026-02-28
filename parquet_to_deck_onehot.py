@@ -9,6 +9,8 @@ import os
 import sys
 import requests
 import json
+from tqdm import trange
+import numpy as np
 
 #Apt
 #TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6IjNiZjBiMzZiLTVlMzQtNGFhZi05MTNkLWUwZmJhMzFiYjJkYyIsImlhdCI6MTc2OTMxNjAwOSwic3ViIjoiZGV2ZWxvcGVyLzhjNzUyNDE0LWIzNzItYjc4Ny0zOTk0LTZlMGExZWEzN2RmZCIsInNjb3BlcyI6WyJyb3lhbGUiXSwibGltaXRzIjpbeyJ0aWVyIjoiZGV2ZWxvcGVyL3NpbHZlciIsInR5cGUiOiJ0aHJvdHRsaW5nIn0seyJjaWRycyI6WyI3Ni4zNy4yNDkuMTU2Il0sInR5cGUiOiJjbGllbnQifV19.c_Z8GSEGA6i8iwWTV6ZUrOVZAVTkGn6vmzPafa6GJRqEMEgyQSlEjzSJnkuPz689Udd2JZUAih0FbgzcmAGRhg"
@@ -35,8 +37,8 @@ df = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = data_colu
 
 # %%
 
-# Load card names from cards json or API call (the same thing, but cards json can be used for debugging/testing in certain situations where API can't)
-card_get_method = "JSON" # "JSON" or "API"
+# Load card names from cards json or API call (cards json can be used for debugging/testing in certain situations whereas API gives an up-to-date version of all the cards)
+card_get_method = "API" # "JSON" or "API"
 if card_get_method == "API" : 
     url = f"https://api.clashroyale.com/v1/cards"
     headers = {"Authorization": f"Bearer {TOKEN}"}
@@ -48,10 +50,58 @@ elif card_get_method == "JSON":
         card_data = json.load(file) 
 
 # %%
-cards = card_data["items"]
-# Three types of cards: default, evolution, and hero
-card_columns = card_data["items"]
+# What do I need? 
+# A player/opponent OH column for every type of card, including default, evo, and hero variants 
 
+# To identify these types from the data, I need a dict, where the key is a tuple (id, evo level) and
+# the value is the column name (e.g. "Evo Knight") 
 
+card_types = dict()
+
+for card in card_data["items"] : 
+    name = card["name"]
+    id = card["id"]
+    if "maxEvolutionLevel" in card : 
+        evo_type = card["maxEvolutionLevel"]
+    else : 
+        evo_type = 0 #default
+    
+    card_types[(id, 0)] = f"{name}"  #Add default no matter what
+
+    if evo_type == 1 : # Evo available (but no hero)
+        card_types[(id, 1)] = f"Evo {name}"
+    elif evo_type == 2 : # Hero available (but no evo)
+        card_types[(id, 2)] = f"Hero {name}"
+    elif evo_type == 3 : # Both evo and hero available
+        card_types[(id, 1)] = f"Evo {name}" 
+        card_types[(id, 2)] = f"Hero {name}"
+
+#%%
+# Create one-hot columns from the card types
+
+OH_columns = ["Plr " + card_name for card_name in card_types] + ["Opp " + card_name for card_name in card_types]
+
+num_rows = df.shape[0]
+
+#%%
+# Create one-hot dataframe (datatype as boolean)
+df_X = pd.DataFrame(
+    data = np.zeros((num_rows, len(OH_columns)), dtype = bool),
+    columns = OH_columns
+    )
+#%%
+
+# For now, brute force fill in the one-hot dataframe by going through each row of the data: 
+player_types = {"p" : "Plr", "o" : "Opp"}
+for row in trange(num_rows) : 
+    for pt in player_types : 
+        for card_i in range(8) : 
+            lookup = (df.loc[row, f"{pt}_card_{card_i+1}"], df.loc[row, f"{pt}_card_{card_i+1}_evohero"])
+            if lookup == (0, 0) : #card not available (e.g. 4-card games)
+                continue
+            df_X.loc[row, f"{player_types[pt]} {card_types[lookup]}"] = True 
+
+#%%
+# Save the one-hot parquet files 
 
 # %%
