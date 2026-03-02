@@ -12,15 +12,9 @@ import requests
 import json
 from tqdm import trange
 import numpy as np
+from functions.get_API_token import get_API_token
 
-#Apt
-#TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6IjNiZjBiMzZiLTVlMzQtNGFhZi05MTNkLWUwZmJhMzFiYjJkYyIsImlhdCI6MTc2OTMxNjAwOSwic3ViIjoiZGV2ZWxvcGVyLzhjNzUyNDE0LWIzNzItYjc4Ny0zOTk0LTZlMGExZWEzN2RmZCIsInNjb3BlcyI6WyJyb3lhbGUiXSwibGltaXRzIjpbeyJ0aWVyIjoiZGV2ZWxvcGVyL3NpbHZlciIsInR5cGUiOiJ0aHJvdHRsaW5nIn0seyJjaWRycyI6WyI3Ni4zNy4yNDkuMTU2Il0sInR5cGUiOiJjbGllbnQifV19.c_Z8GSEGA6i8iwWTV6ZUrOVZAVTkGn6vmzPafa6GJRqEMEgyQSlEjzSJnkuPz689Udd2JZUAih0FbgzcmAGRhg"
-
-#K apt 
-#TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6IjY4MmNjOGNmLTcxMzktNDNmOS1hZmM5LWM1NzgyYjAwMGJlNSIsImlhdCI6MTc3MTAyNjgwMywic3ViIjoiZGV2ZWxvcGVyLzhjNzUyNDE0LWIzNzItYjc4Ny0zOTk0LTZlMGExZWEzN2RmZCIsInNjb3BlcyI6WyJyb3lhbGUiXSwibGltaXRzIjpbeyJ0aWVyIjoiZGV2ZWxvcGVyL3NpbHZlciIsInR5cGUiOiJ0aHJvdHRsaW5nIn0seyJjaWRycyI6WyI3Ni4zNy4yNTAuMTgiXSwidHlwZSI6ImNsaWVudCJ9XX0.8-Fwy4Unu3TQFOn4opxt_A9r2bOxu1VOOUY6jvqV1QcciJdjNCjK6IOPVm0T7vKvqvWYjfR7GhnYJoGtSri3fQ"
-
-#Hospital
-TOKEN = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiIsImtpZCI6IjI4YTMxOGY3LTAwMDAtYTFlYi03ZmExLTJjNzQzM2M2Y2NhNSJ9.eyJpc3MiOiJzdXBlcmNlbGwiLCJhdWQiOiJzdXBlcmNlbGw6Z2FtZWFwaSIsImp0aSI6IjBiODkwMjBkLTY4YWMtNDhkYS05NTcwLTEyZTllNzFhM2NlOCIsImlhdCI6MTc2OTM2NjQwNCwic3ViIjoiZGV2ZWxvcGVyLzhjNzUyNDE0LWIzNzItYjc4Ny0zOTk0LTZlMGExZWEzN2RmZCIsInNjb3BlcyI6WyJyb3lhbGUiXSwibGltaXRzIjpbeyJ0aWVyIjoiZGV2ZWxvcGVyL3NpbHZlciIsInR5cGUiOiJ0aHJvdHRsaW5nIn0seyJjaWRycyI6WyIxMjguMTUxLjcxLjIzIl0sInR5cGUiOiJjbGllbnQifV19._7in6Y-a-cSSGzzXBjMZB0HZaRO-3qIjxCs9cphtEJ0weFyuCXinSyxqcgtgP7LFrCQMJc4dIC1ncAJXq1ynXA"
+TOKEN = get_API_token()
 
 parquet_raw_dir = Path(os.getcwd() + "/data/parquet_raw/")
 parquet_X_dir = Path(os.getcwd() + "/data/parquet_X")
@@ -86,7 +80,7 @@ for pqt_filename in parquet_raw_files :
             card_types[(id, 2)] = f"Hero {name}"
 
     # Create one-hot columns from the card types
-    OH_columns = ["Plr " + card_name for card_name in card_types] + ["Opp " + card_name for card_name in card_types]
+    OH_columns = ["Plr " + card_name for card_name in card_types.values()] + ["Opp " + card_name for card_name in card_types.values()]
 
     num_rows = df.shape[0]
 
@@ -101,7 +95,7 @@ for pqt_filename in parquet_raw_files :
         for pt in player_types : 
             for card_i in range(8) : 
                 lookup = (df.loc[row, f"{pt}_card_{card_i+1}"], df.loc[row, f"{pt}_card_{card_i+1}_evohero"])
-                if lookup == (0, 0) : #card not available (e.g. 4-card games)
+                if lookup not in card_types: #card not available (e.g. 4-card games, a card that was very recently introduced, or a limited-time card)
                     continue
                 df_X.loc[row, f"{player_types[pt]} {card_types[lookup]}"] = True 
 

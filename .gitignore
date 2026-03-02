@@ -11,6 +11,12 @@ venv/
 data/
 json/
 
+# get_API_token function
+functions/get_API_token.py
+
+# Models
+modeling/models
+
 # Results
 results/
 figures/
