@@ -10,11 +10,12 @@ import sys
 import datetime
 from tqdm import tqdm
 import requests
-from functions import get_API_token 
+from functions.get_API_token import get_API_token
+from functions.get_card_onehot_columns import get_card_onehot_columns
 
 #%% 
 
-TOKEN = get_API_token.get_API_token() 
+TOKEN = get_API_token() 
 
 #%%
 # Define paths
@@ -30,38 +31,7 @@ csv_batch_size = 500 # number of csv files to convert to parquet at a time
 #%% 
 # Get one-hot card column names using logic on data from API   
 
-# Load card names from API 
-url = f"https://api.clashroyale.com/v1/cards"
-headers = {"Authorization": f"Bearer {TOKEN}"}
-r = requests.get(url, headers = headers)
-card_data = r.json()
-
-# To identify these types from the data, I need a dict, where the key is a tuple (id, evo level) and
-# the value is the column name (e.g. "Evo Knight") 
-
-card_types = dict()
-
-for card in card_data["items"] : 
-    name = card["name"]
-    id = card["id"]
-    if "maxEvolutionLevel" in card : 
-        evo_type = card["maxEvolutionLevel"]
-    else : 
-        evo_type = 0 #default
-    
-    card_types[(id, 0)] = f"{name}"  #Add default no matter what
-
-    if evo_type == 1 : # Evo available (but no hero)
-        card_types[(id, 1)] = f"Evo {name}"
-    elif evo_type == 2 : # Hero available (but no evo)
-        card_types[(id, 2)] = f"Hero {name}"
-    elif evo_type == 3 : # Both evo and hero available
-        card_types[(id, 1)] = f"Evo {name}" 
-        card_types[(id, 2)] = f"Hero {name}"
-
-# Create one-hot columns from the card types
-OH_columns = ["Plr " + card_name for card_name in card_types.values()] + ["Opp " + card_name for card_name in card_types.values()]
-
+card_types, OH_columns = get_card_onehot_columns(TOKEN)  
 
 #%% 
 # Define data types for each column
@@ -90,15 +60,11 @@ d_types = {
 {f"p_card_{i+1}_evohero" : "uint8" for i in range(8)} | \
 {f"o_card_{i+1}" : "uint32" for i in range(8)} | \
 {f"o_card_{i+1}_level" : "uint8" for i in range(8)} | \
-{f"o_card_{i+1}_evohero" : "uint8" for i in range(8)} \
- # One hot columns 
-{}
-
-
-# fyi : sys.getsizeof(retyped_df) is ~0.5 sys.getsizeof(raw_df)
+{f"o_card_{i+1}_evohero" : "uint8" for i in range(8)} | \
+{one_hot_column : "bool" for one_hot_column in OH_columns}
 
 #%%
-# Get filenames of raw data and establish batch size
+# Get filenames of raw data 
 raw_data_names = [filepath.name for filepath in raw_dir.glob("*.csv")]
 num_files = len(raw_data_names)
 num_batches = num_files // csv_batch_size
@@ -112,18 +78,28 @@ if num_batches > 0 :
         for file_ii in tqdm(batch_file_range) : 
             single_df = pd.read_csv(raw_dir / raw_data_names[file_ii])
             single_df.fillna(0, inplace = True) #replace NaN values with 0 
-            for col, dt in d_types.items() : 
+            single_df = pd.concat([single_df, pd.DataFrame(columns = OH_columns)]) #Add one-hot columns
+            for col, dt in d_types.items() : # Convert column data types 
                 single_df[col] = single_df[col].astype(dt)
+            num_rows = single_df.shape[0]
+            # Fill in the one-hot columns by processing each row of the data: 
+            player_types = {"p" : "Plr", "o" : "Opp"}
+            for row in range(num_rows) : 
+                for pt in player_types : 
+                    for card_i in range(8) : 
+                        lookup = (single_df.loc[row, f"{pt}_card_{card_i+1}"], single_df.loc[row, f"{pt}_card_{card_i+1}_evohero"])
+                        if lookup not in card_types: #card not available (e.g. 4-card games, a card that was very recently introduced, or a limited-time card)
+                            continue
+                        single_df.loc[row, f"{player_types[pt]} {card_types[lookup]}"] = True 
+
             df_list.append(single_df)
+
         df = pd.concat(df_list, ignore_index = True) #Contains the re-typed data from all of the batch CSVs
 
         # Use timestamp to uniquely identify the parquet batch file
         dt = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-        batch_filepath_tmp = parquet_dir / (dt + ".parquet.tmp")
         batch_filepath = parquet_dir / (dt + ".parquet")
-        df.to_parquet(batch_filepath_tmp, engine = "pyarrow", compression = "zstd", index = False)
-        # After saving successfully, convert .tmp to .parquet (.tmp makes crashing during saves not a problem)
-        batch_filepath_tmp.replace(batch_filepath)
+        df.to_parquet(batch_filepath, engine = "pyarrow", compression = "zstd")
 
         # Move all CSV files in the batch to converted
         for file_ii in batch_file_range : 
@@ -131,5 +107,14 @@ if num_batches > 0 :
 
 print("Done converting CSV to parquet")
 
+
+# %%
+
+test_data = {"A" : [1, 1], "B" : [2, 2]}
+test = pd.DataFrame(test_data)
+
+
+test = pd.concat([test, pd.DataFrame(columns = ["C"])])
+print(test)
 
 # %%

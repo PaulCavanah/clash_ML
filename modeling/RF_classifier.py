@@ -10,30 +10,39 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report 
 import pickle
 from pathlib import Path
+from functions.get_API_token import get_API_token
+from functions.get_card_onehot_columns import get_card_onehot_columns
 
 #%% 
+TOKEN = get_API_token()
 
-parquet_raw_dir = Path(os.getcwd() + "/data/parquet_raw")
-parquet_X_dir = Path(os.getcwd() + "/data/parquet_X")
+parquet_dir = Path(os.getcwd() + "/data/parquet")
 
 random_state = 42 # for splits and model 
 
-#%%
-#1. Load in X and Y data
-# X comes from parquet_X
-# Y comes from parquet_raw 
-# only include ladder and ranked matches
+#%% 
+# X columns (only those in parquet files): 
+# Plan: load in schema using pyarrow (Google it) and get columns starting with
+# Plr and Opp
 
+#%%
+# Load in X and Y data
+
+# only include ladder and ranked matches
 filters = [("gamemode", "=", "Ranked1v1_NewArena"), ("gamemode", "=", "Ladder")]
 
-gamemode = 
-
 # X : 
-X = pd.read_parquet(path = parquet_X_dir, engine = "pyarrow", )
+X = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = OH_columns)
+
+#%%
+
+print(X.shape)
+
+#%%
 
 # Y :
 y_columns = ["player_crowns", "opponent_crowns"]
-crown_data = pd.read_parquet(path = parquet_raw_dir, engine = "pyarrow", columns = y_columns, filters = filters)
+crown_data = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = y_columns, filters = filters)
 Y = crown_data["player_crowns"] > crown_data["opponent_crowns"]
 
 #%% 
