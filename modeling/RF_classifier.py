@@ -32,7 +32,7 @@ parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")
 dfs = []
 for filename in parquet_filenames : 
     #%% 
-    filename = parquet_filenames[1]
+    filename = parquet_filenames[0]
     pf = pq.ParquetFile(parquet_dir / filename)
     columns = pf.schema.names
     X_columns = [column for column in columns if column[0:3] in ("Plr", "Opp")]
