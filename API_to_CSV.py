@@ -2,7 +2,24 @@
 # Produces CSV files with battle data in them
 
 # How the collector keeps track of previous battles/players: 
-# - Insert description about postgresql database 
+# There is a postgresql database ("hash db") which has a table in it called "battles".
+# The primary key of the battles table is battle_id, which is a 16-character hash
+# of the player id, opponent id, and the datetime for the battle.
+# Every time that a battle is processed (i.e. converted from json to columnar format)
+# this hash is generated and checked for its membership in the battles table
+# (an O(1) operation). If the battle is in the table, it's rejected. Otherwise,
+# it's added to the table and the battle is added to the CSV file. 
+#
+# How players are added to the queue (for the battles to be collected): 
+# It's a simple recency search in the battles table (see above). When this
+# script is initially called, a query is made to the battles table asking for
+# the last N unique opponent IDs (was 10,000 when this was written). When this
+# list is depleted, the query is simply made again. The approach prioritizes
+# players who have played recent games, and those who have played against players
+# that have already been queried. A result of this is that many of the players
+# who are collected are in ranked/top-ladder matchups and they are queried repeatedly
+# over the course of days/weeks. There is almost certainly a more optimal way of
+# doing this, but this works well enough to collect new battles in the target demographic.
 
 # All relevant data are included. 
 
@@ -252,5 +269,7 @@ while True :
 
     except Exception as e: 
         print(e) 
+        TOKEN = get_API_token()
+
 
 # %%

@@ -12,6 +12,7 @@ import pickle
 from pathlib import Path
 from functions.get_API_token import get_API_token
 from functions.get_card_onehot_columns import get_card_onehot_columns
+import pyarrow.parquet as pq
 
 #%% 
 TOKEN = get_API_token()
@@ -21,9 +22,35 @@ parquet_dir = Path(os.getcwd() + "/data/parquet")
 random_state = 42 # for splits and model 
 
 #%% 
-# X columns (only those in parquet files): 
-# Plan: load in schema using pyarrow (Google it) and get columns starting with
-# Plr and Opp
+# Load in X and Y data from the parquet files: 
+# Due to card updates, the schema evolves - parquet files may have different columns
+# The approach to merging these schemas is to load in each parquet file individually
+# with its unique one hot columns as a dataframe, add the dataframe to a list,
+# then concatenate the list of dataframes and fill the NaNs with false
+
+parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")]
+dfs = []
+for filename in parquet_filenames : 
+    #%% 
+    filename = parquet_filenames[1]
+    pf = pq.ParquetFile(parquet_dir / filename)
+    columns = pf.schema.names
+    X_columns = [column for column in columns if column[0:3] in ("Plr", "Opp")]
+    Y_columns = ["player_crowns", "opponent_crowns"]
+    df = pd.read_parquet(path = parquet_dir / filename, engine = "pyarrow", columns = Y_columns + X_columns)
+
+    #%%
+    print(df.iloc[1, :])
+
+    #%%
+
+#%%
+parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")]
+
+
+#%%
+
+pd.read_parquet(path = parquet_dir, columns = ["Plr Hero Magic Archer"])
 
 #%%
 # Load in X and Y data
@@ -31,12 +58,6 @@ random_state = 42 # for splits and model
 # only include ladder and ranked matches
 filters = [("gamemode", "=", "Ranked1v1_NewArena"), ("gamemode", "=", "Ladder")]
 
-# X : 
-X = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = OH_columns)
-
-#%%
-
-print(X.shape)
 
 #%%
 
