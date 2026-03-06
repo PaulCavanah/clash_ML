@@ -13,11 +13,12 @@ from pathlib import Path
 from functions.get_API_token import get_API_token
 from functions.get_card_onehot_columns import get_card_onehot_columns
 import pyarrow.parquet as pq
+import datetime 
 
 #%% 
-TOKEN = get_API_token()
 
 parquet_dir = Path(os.getcwd() + "/data/parquet")
+models_dir = Path(os.getcwd() + "/modeling/models")
 
 num_batches_to_load = 1 
 
@@ -40,23 +41,18 @@ for filename in parquet_filenames :
     Y_columns = ["player_crowns", "opponent_crowns"]
 
     # only include ladder and ranked matches
-    filters = [("gamemode", "==", "Ranked1v1_NewArena"), ("gamemode", "==", "Ladder")]
+    filters = [[("gamemode", "==", "Ranked1v1_NewArena")], [("gamemode", "==", "Ladder")], [("gamemode", "==", "Ranked1v1_NewArena2")]]
 
-    df = pd.read_parquet(path = parquet_dir / filename, engine = "pyarrow", columns = Y_columns + X_columns)
+    df = pd.read_parquet(path = parquet_dir / filename, engine = "pyarrow", columns = Y_columns + X_columns, filters = filters)
     dfs.append(df)
 
 df = pd.concat(dfs, ignore_index = True)
+print("Loaded DataFrame:", df.shape)
 
 #%%
-
-print(df.shape)
-
-#%%
-
-# Y :
-y_columns = ["player_crowns", "opponent_crowns"]
-crown_data = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = y_columns, filters = filters)
-Y = crown_data["player_crowns"] > crown_data["opponent_crowns"]
+# Get X and Y vectors 
+X = df.iloc[:, 2:]
+Y = df["player_crowns"] > df["opponent_crowns"]
 
 #%% 
 # Create train and test splits
@@ -65,20 +61,24 @@ print(x_train.shape, x_test.shape, y_train.shape, y_test.shape)
 
 # %%
 # Train classifier 
-from sklearn.ensemble import RandomForestClassifier
 rf = RandomForestClassifier(verbose = 2, max_depth = 30, min_samples_leaf = 5, random_state = random_state)
 rf.fit(x_train, y_train)
 
 # %%
 # Investigate model results
 rf_test_acc = rf.score(x_test, y_test)
+print(rf_test_acc)
+
+#%%
 
 y_pred = rf.predict(x_test)
-from sklearn.metrics import classification_report 
 print(classification_report(y_test, y_pred))
 
-# Save (pickle) the model 
-import pickle
-pkl_path = "models\\RF_1.pkl"
+#%%
+# Save (pickle) the model using datetime as name
+dt = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+pkl_path = models_dir / f"RFC_{dt}.pkl"
 with open(pkl_path, 'wb') as file : 
     pickle.dump(rf, file) 
+
+# %%
