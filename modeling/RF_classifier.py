@@ -19,6 +19,8 @@ TOKEN = get_API_token()
 
 parquet_dir = Path(os.getcwd() + "/data/parquet")
 
+num_batches_to_load = 1 
+
 random_state = 42 # for splits and model 
 
 #%% 
@@ -28,36 +30,26 @@ random_state = 42 # for splits and model
 # with its unique one hot columns as a dataframe, add the dataframe to a list,
 # then concatenate the list of dataframes and fill the NaNs with false
 
-parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")]
+parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")][0:num_batches_to_load]
 dfs = []
+
 for filename in parquet_filenames : 
-    #%% 
-    filename = parquet_filenames[0]
     pf = pq.ParquetFile(parquet_dir / filename)
     columns = pf.schema.names
     X_columns = [column for column in columns if column[0:3] in ("Plr", "Opp")]
     Y_columns = ["player_crowns", "opponent_crowns"]
+
+    # only include ladder and ranked matches
+    filters = [("gamemode", "==", "Ranked1v1_NewArena"), ("gamemode", "==", "Ladder")]
+
     df = pd.read_parquet(path = parquet_dir / filename, engine = "pyarrow", columns = Y_columns + X_columns)
+    dfs.append(df)
 
-    #%%
-    print(df.iloc[1, :])
-
-    #%%
-
-#%%
-parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")]
-
+df = pd.concat(dfs, ignore_index = True)
 
 #%%
 
-pd.read_parquet(path = parquet_dir, columns = ["Plr Hero Magic Archer"])
-
-#%%
-# Load in X and Y data
-
-# only include ladder and ranked matches
-filters = [("gamemode", "=", "Ranked1v1_NewArena"), ("gamemode", "=", "Ladder")]
-
+print(df.shape)
 
 #%%
 

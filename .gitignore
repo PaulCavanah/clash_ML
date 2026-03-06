@@ -21,6 +21,9 @@ modeling/models
 results/
 figures/
 
+# Sandbox
+sandbox/
+
 # Jupyter
 .ipynb_checkpoints/
 

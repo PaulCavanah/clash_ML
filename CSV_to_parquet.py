@@ -158,7 +158,7 @@ if num_batches > 0 :
             # Append dataframe to batch df list
             df_list.append(single_df)
 
-        df = pd.concat(df_list, ignore_index = True, axis = 1) #Contains the data from all of the batch CSVs
+        df = pd.concat(df_list, ignore_index = True) #Contains the data from all of the batch CSVs
 
         print("Saving parquet...")
         df.to_parquet(batch_filepath, engine = "pyarrow", compression = "zstd", index = False)
@@ -197,3 +197,5 @@ print("Done converting CSV to parquet")
 
 # print(card_cols, col_names)
 # # %%
+
+# %%
