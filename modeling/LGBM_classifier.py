@@ -2,6 +2,8 @@
 
 #%% 
 import lightgbm as lgb
+from scipy import sparse
+import gc
 import numpy as np 
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
@@ -13,10 +15,10 @@ import pandas as pd
 
 #%% 
 
-parquet_dir = Path(os.getcwd() + "/../data/parquet")
+parquet_dir = Path(os.getcwd() + "/data/parquet")
 
-train_limit = 10000
-num_batches_to_load = 1
+train_limit = -1 # number of training samples to use, -1 uses all of them (except the last one)  
+num_batches_to_load = 15
 
 random_state = 42 # for splits and model 
 
@@ -48,32 +50,46 @@ for filename in parquet_filenames :
 df = pd.concat(dfs, ignore_index = True)
 print("Loaded DataFrame:", df.shape)
 
-#del dfs #Major consumer of memory
+del dfs #Major consumer of memory
+gc.collect()
 
 #%%
 # Get X and Y vectors 
 X = df.iloc[:, 2:]
+X_names = df.columns[2:]
 Y = df["player_crowns"] > df["opponent_crowns"]
 
-#del df # Major consumer of memory
+del df # Major consumer of memory
+gc.collect()
+
+X_sparse = sparse.csr_matrix(X.to_numpy()).astype(np.float32)
+
+del X # Major consumer of memory
+gc.collect()
 
 #%% 
 # Create train and test splits
-x_train, x_test, y_train, y_test = train_test_split(X, Y, test_size = 0.1, random_state = random_state)
+x_train, x_test, y_train, y_test = train_test_split(X_sparse, Y, test_size = 0.1, random_state = random_state)
 #print(x_train.shape, x_test.shape, y_train.shape, y_test.shape)
 
-x_train = x_train[0:train_limit]
-y_train = y_train[0:train_limit]
+x_train = x_train[:train_limit]
+y_train = y_train[:train_limit]
 
-del X # Major consumer of memory
+del X_sparse # Major consumer of memory
 del Y # Minor consumer of memory
+gc.collect()
+
+#%%
 
 # Create LightGBM dataset object 
 train_data = lgb.Dataset(x_train, label=y_train)
 
+#%%
+
 # Set parameters for regression
 params = {
-    "objective": "regression",
+    "objective": "binary",
+    "metric": "binary_logloss",
     "verbose": -1
 }
 
@@ -83,9 +99,17 @@ model = lgb.train(params, train_data, num_boost_round = 500)
 
 #%%
 
-y_pred = model.predict(x_test) > 0.5
-accuracy = accuracy_score(y_test, y_pred)
-print(accuracy)
+y_pred = model.predict(x_test)
+y_pred_binary = y_pred > 0.5 
+accuracy = accuracy_score(y_test, y_pred_binary)
+MSE = mean_squared_error(y_test, y_pred)
+print(accuracy, MSE)
+
+feature_importances = model.feature_importance()
+features = X_names 
+FI = {int(feature_importance) : feature for feature, feature_importance in zip(features, feature_importances)}
+sorted_FI = {int(sorted_I) : FI[sorted_I] for sorted_I in sorted(feature_importances, reverse = True)}
+print(sorted_FI)
 
 # %%
 print(x_train.shape)
