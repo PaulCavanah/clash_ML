@@ -56,8 +56,11 @@ from pathlib import Path
 import hashlib
 import base64
 from functions.get_API_token import get_API_token
+import sys
 
 TOKEN = get_API_token()
+if TOKEN == None : 
+    sys.ext()
 
 # Directory where csv will be saved
 data_dir = Path(os.getcwd() + "/data/raw_data/")
