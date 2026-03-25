@@ -168,34 +168,3 @@ if num_batches > 0 :
             shutil.move(raw_dir / csv_file, done_dir / csv_file) 
 
 print("Done converting CSV to parquet")
-
-
-
-# # %%
-# # Do a quick test: 
-# lk = {0: "A", 1 : "B"}
-
-# test_data = np.zeros((3, 3))
-# idx = np.array([[0, 0, 1], [1, 2, 1]])
-# test_data[idx[0], idx[1]] = 1
-
-# vals = np.vectorize(lk.get)
-# print(vals(test_data))
-
-# print(vals)
-
-# #%%
-
-# # %%
-
-
-# card_ids = np.array([27000012, 26000064, 28000005, 28000006, 26000051, 26000052, 28000024, 28000000]) + 1000*(np.array([1, 1, 0, 0, 0, 0, 0, 0])+1) + 10000
-
-# card_cols = cardkey_to_colnum_lookup[card_ids]
-
-# col_names = [OH_columns[col] for col in card_cols]
-
-# print(card_cols, col_names)
-# # %%
-
-# %%
