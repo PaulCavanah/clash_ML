@@ -3,14 +3,15 @@ from pathlib import Path
 import pandas as pd
 import pyarrow.parquet as pq
 import gc
+import numpy as np
 
-def load_data_from_parquet(num_batches) : 
+def load_data_from_parquet(num_batches, player_swap = True) : 
     # Load in X and Y data from the parquet files: 
     # Due to card updates, the schema evolves - parquet files may have different columns
     # The approach to merging these schemas is to load in each parquet file individually
     # with its unique one hot columns as a dataframe, add the dataframe to a list,
     # then concatenate the list of dataframes and fill the NaNs with false
-
+    
     parquet_dir = Path(os.getcwd() + "/data/parquet")
 
     parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")][0:num_batches]
@@ -43,10 +44,29 @@ def load_data_from_parquet(num_batches) :
     # X and Y
     X = df.iloc[:, 2:]
     y = df["player_crowns"] > df["opponent_crowns"]
-    print("Loaded Data with shape:", f"X:{X.shape}, Y:{y.shape}" )
+    print("Loaded Data with shape:", f"X:{X.shape}, y:{y.shape}" )
 
     # Could expand memory bottleneck for systems with low RAM
     del df
     gc.collect() 
 
-    return X, y
+    # Swap player and opponent data so that model does not form player/opponent biases 
+    if player_swap : 
+        num_rows = y.shape[0]
+        # Randomly set rows to swap:
+        rows_to_flip = np.random.binomial(1, p = 0.5, size = num_rows).astype(bool)
+
+        half = X.shape[1] // 2 #swap around half-way point (player is first half / opponent is second half)
+
+        # Swap player columns to opponent columns and opponent columns to player columns at the True rows
+        X_swap = X.copy()
+        X_swap.iloc[rows_to_flip, half:] = X.iloc[rows_to_flip, :half] # Set player deck data to opponent deck data
+        X_swap.iloc[rows_to_flip, :half] = X.iloc[rows_to_flip, half:] # Set opponent deck data to player deck data
+
+        # Do "Not" operation on y at True rows
+        y_swap = y.copy()
+        y_swap.iloc[rows_to_flip] = np.logical_not(y.iloc[rows_to_flip])
+
+        return X_swap, y_swap
+    else : 
+        return X, y
