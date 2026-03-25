@@ -15,7 +15,7 @@ from pathlib import Path
 import os
 import gc
 
-# Set root dir as cwd
+# Make clash_ML (root) the current directory  
 enum = [(i, dir) for i, dir in enumerate(os.getcwd().split("\\"))]
 root_dir = Path("\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if dir == "clash_ML"][0]]))
 os.chdir(root_dir)
