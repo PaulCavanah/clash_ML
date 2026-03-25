@@ -13,14 +13,17 @@ from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
 from pathlib import Path
 import os
+import sys
 import gc
 
-# Make clash_ML (root) the current directory  
+# Make clash_ML (root) the current directory and add it to path
 enum = [(i, dir) for i, dir in enumerate(os.getcwd().split("\\"))]
 root_dir = Path("\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if dir == "clash_ML"][0]]))
 os.chdir(root_dir)
+sys.path.append(os.getcwd())
 
 from functions.load_data_from_parquet import load_data_from_parquet
+from modeling.architectures import Logit_in_256_128_64_1
 
 #%%
 if torch.cuda.is_available() :
@@ -29,40 +32,6 @@ else :
     DEVICE = torch.device("cpu")
 
 print("Using device: ", DEVICE)
-
-# ================================================================
-#%%
-# Network architecture:
-
-class ClashDeckNN(nn.Module) : 
-    """
-    340 -> 256 -> 128 -> 64 -> 1
-    """
-
-    def __init__(self, input_dim : int, dropout : float = 0.3) : 
-        super().__init__()
-
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-
-            nn.Linear(64, 1) # raw logit
-        )
-
-    def forward(self, x) : 
-        return self.net(x).squeeze(1)
     
 # ================================================================
 #%%
@@ -122,8 +91,8 @@ def evaluate_model(model, loader, device):
 class TrainConfig : 
     batch_size: int = 512
     lr: float = 1e-4 
-    max_epochs: int = 500
-    patience: int = 50
+    max_epochs: int = 100
+    patience: int = 10
 
 def train_model(model, train_loader, val_loader, config: TrainConfig, device) : 
     criterion = nn.BCEWithLogitsLoss()
@@ -196,9 +165,9 @@ def train_model(model, train_loader, val_loader, config: TrainConfig, device) :
 
 random_state = 42
 
-num_batches_to_load = 13
+num_batches_to_load = 10
 
-X, y = load_data_from_parquet(num_batches_to_load)
+X, y = load_data_from_parquet(num_batches = num_batches_to_load, player_swap = True)
 
 #%%
 # 85 / 7.5 / 7.5 split
@@ -237,6 +206,7 @@ test_ds = TensorDataset(X_test_t, y_test_t)
 del X_train, X_val, y_train, y_val
 gc.collect()
 
+# ================================================================
 #%%
 # Train the model
 
@@ -246,9 +216,10 @@ train_loader = DataLoader(train_ds, batch_size = config.batch_size, shuffle = Tr
 val_loader = DataLoader(val_ds, batch_size = config.batch_size, shuffle = False)
 test_loader = DataLoader(test_ds, batch_size = config.batch_size, shuffle = False)
 
-model = ClashDeckNN(input_dim = X_train_t.shape[1], dropout = 0.3).to(DEVICE)
+model = Logit_in_256_128_64_1(input_dim = X_train_t.shape[1], dropout = 0.3).to(DEVICE)
 model, history = train_model(model, train_loader, val_loader, config, DEVICE)
 
+# ================================================================
 #%% 
 # Final evaluation 
 train_metrics = evaluate_model(model, train_loader, DEVICE)
@@ -263,8 +234,8 @@ print("Test: ", test_metrics)
 
 #%% 
 # Save neural network state
-models_dir = root_dir / "modeling/models/"
-models_dir.mkdir(parents = True, exist_ok = True)
-save_path = Path(models_dir / "NN_15M_ladder.pth")
+# models_dir = root_dir / "modeling/models/"
+# models_dir.mkdir(parents = True, exist_ok = True)
+# save_path = Path(models_dir / "test.pth")
 
-torch.save(model.state_dict, save_path) 
+# torch.save(model.state_dict, save_path) 
