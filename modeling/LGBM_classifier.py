@@ -8,75 +8,37 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import accuracy_score, classification_report
-from pathlib import Path
-import os
+
 import pyarrow.parquet as pq
 import pandas as pd
 
-#%% 
+import sys
+from pathlib import Path
+import os
 
-parquet_dir = Path(os.getcwd() + "/data/parquet")
+# Make clash_ML (root) the current directory and add it to path
+enum = [(i, dir) for i, dir in enumerate(os.getcwd().split("\\"))]
+root_dir = Path("\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if dir == "clash_ML"][0]]))
+os.chdir(root_dir)
+sys.path.append(os.getcwd())
 
-train_limit = -1 # number of training samples to use, -1 uses all of them (except the last one)  
-num_batches_to_load = 15
+from functions.load_data_from_parquet import load_data_from_parquet 
 
 random_state = 42 # for splits and model 
 
 #%% 
-# Load in X and Y data from the parquet files: 
-# Due to card updates, the schema evolves - parquet files may have different columns
-# The approach to merging these schemas is to load in each parquet file individually
-# with its unique one hot columns as a dataframe, add the dataframe to a list,
-# then concatenate the list of dataframes and fill the NaNs with false
+# Load data
 
-parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")][0:num_batches_to_load]
-dfs = []
-
-for filename in parquet_filenames : 
-    pf = pq.ParquetFile(parquet_dir / filename)
-    columns = pf.schema.names
-    X_columns = [column for column in columns if column[0:3] in ("Plr", "Opp")]
-    Y_columns = ["player_crowns", "opponent_crowns"]
-
-    # only include ladder and ranked matches
-    # filters = [[("gamemode", "==", "Ranked1v1_NewArena")],
-    #            [("gamemode", "==", "Ladder")], 
-    #            [("gamemode", "==", "Ranked1v1_NewArena2")]]
-    filters = [[("gamemode", "==", "Ladder")]]
-
-    df = pd.read_parquet(path = parquet_dir / filename, engine = "pyarrow", columns = Y_columns + X_columns, filters = filters)
-    dfs.append(df)
-
-df = pd.concat(dfs, ignore_index = True)
-print("Loaded DataFrame:", df.shape)
-
-del dfs #Major consumer of memory
-gc.collect()
-
-#%%
-# Get X and Y vectors 
-X = df.iloc[:, 2:]
-X_names = df.columns[2:]
-Y = df["player_crowns"] > df["opponent_crowns"]
-
-del df # Major consumer of memory
-gc.collect()
-
-X_sparse = sparse.csr_matrix(X.to_numpy()).astype(np.float32)
-
-del X # Major consumer of memory
-gc.collect()
+num_batches_to_load = 1
+X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_swap = True)
 
 #%% 
 # Create train and test splits
-x_train, x_test, y_train, y_test = train_test_split(X_sparse, Y, test_size = 0.1, random_state = random_state)
+x_train, x_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, random_state = random_state)
 #print(x_train.shape, x_test.shape, y_train.shape, y_test.shape)
 
-x_train = x_train[:train_limit]
-y_train = y_train[:train_limit]
-
-del X_sparse # Major consumer of memory
-del Y # Minor consumer of memory
+del X # Major consumer of memory
+del y # Minor consumer of memory
 gc.collect()
 
 #%%
@@ -105,12 +67,12 @@ accuracy = accuracy_score(y_test, y_pred_binary)
 MSE = mean_squared_error(y_test, y_pred)
 print(accuracy, MSE)
 
+#%%
+
 feature_importances = model.feature_importance()
-features = X_names 
+features = feature_names 
 FI = {int(feature_importance) : feature for feature, feature_importance in zip(features, feature_importances)}
 sorted_FI = {int(sorted_I) : FI[sorted_I] for sorted_I in sorted(feature_importances, reverse = True)}
 print(sorted_FI)
 
-# %%
-print(x_train.shape)
 # %%

@@ -167,7 +167,7 @@ random_state = 42
 
 num_batches_to_load = 10
 
-X, y = load_data_from_parquet(num_batches = num_batches_to_load, player_swap = True)
+X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_swap = True)
 
 #%%
 # 85 / 7.5 / 7.5 split

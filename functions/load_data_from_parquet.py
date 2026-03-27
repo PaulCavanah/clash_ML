@@ -35,6 +35,8 @@ def load_data_from_parquet(num_batches, player_swap = True) :
 
     df = pd.concat(dfs, ignore_index = True)
 
+    feature_names = df.columns[2:]
+
     # Could expand memory bottleneck for systems with low RAM
     del dfs
     gc.collect()
@@ -67,6 +69,6 @@ def load_data_from_parquet(num_batches, player_swap = True) :
         y_swap = y.copy()
         y_swap.iloc[rows_to_flip] = np.logical_not(y.iloc[rows_to_flip])
 
-        return X_swap, y_swap
+        return X_swap, y_swap, feature_names
     else : 
-        return X, y
+        return X, y, feature_names
