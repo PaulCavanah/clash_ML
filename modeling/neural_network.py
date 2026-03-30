@@ -23,7 +23,7 @@ os.chdir(root_dir)
 sys.path.append(os.getcwd())
 
 from functions.load_data_from_parquet import load_data_from_parquet
-from modeling.architectures import Logit_in_256_128_64_1
+from modeling.architectures import LogitSharedEncoder_128_64_1
 
 #%%
 if torch.cuda.is_available() :
@@ -165,7 +165,7 @@ def train_model(model, train_loader, val_loader, config: TrainConfig, device) :
 
 random_state = 42
 
-num_batches_to_load = 10
+num_batches_to_load = 1
 
 X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_swap = True)
 
@@ -216,7 +216,7 @@ train_loader = DataLoader(train_ds, batch_size = config.batch_size, shuffle = Tr
 val_loader = DataLoader(val_ds, batch_size = config.batch_size, shuffle = False)
 test_loader = DataLoader(test_ds, batch_size = config.batch_size, shuffle = False)
 
-model = Logit_in_256_128_64_1(input_dim = X_train_t.shape[1], dropout = 0.3).to(DEVICE)
+model = LogitSharedEncoder_128_64_1(input_dim = X_train_t.shape[1]).to(DEVICE)
 model, history = train_model(model, train_loader, val_loader, config, DEVICE)
 
 # ================================================================
