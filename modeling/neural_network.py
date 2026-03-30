@@ -167,7 +167,7 @@ random_state = 42
 
 num_batches_to_load = 1
 
-X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_swap = True)
+X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_mirror = True)
 
 #%%
 # 85 / 7.5 / 7.5 split
@@ -234,8 +234,9 @@ print("Test: ", test_metrics)
 
 #%% 
 # Save neural network state
-# models_dir = root_dir / "modeling/models/"
-# models_dir.mkdir(parents = True, exist_ok = True)
-# save_path = Path(models_dir / "test.pth")
+models_dir = root_dir / "modeling/model_states/"
+models_dir.mkdir(parents = True, exist_ok = True)
+save_path = Path(models_dir / "NNencoder_600k_mirror_ladder.pth")
 
-# torch.save(model.state_dict, save_path) 
+torch.save(model.state_dict, save_path) 
+# %%
