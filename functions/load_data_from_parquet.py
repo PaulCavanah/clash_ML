@@ -34,10 +34,13 @@ def load_data_from_parquet(num_batches, player_mirror = True) :
         Y_columns = ["player_crowns", "opponent_crowns"]
 
         # only include ladder and ranked matches
-        filters = [[("gamemode", "==", "Ranked1v1_NewArena")],
-                    [("gamemode", "==", "Ladder")], 
-                     [("gamemode", "==", "Ranked1v1_NewArena2")]]
+        # filters = [[("gamemode", "==", "Ranked1v1_NewArena")],
+        #             [("gamemode", "==", "Ladder")], 
+        #              [("gamemode", "==", "Ranked1v1_NewArena2")]]
         #filters = [[("gamemode", "==", "Ladder")]]
+        
+        filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , 10000)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", 1000)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", 1000)]]
+
 
         df = pd.read_parquet(path = parquet_dir / filename, engine = "pyarrow", columns = Y_columns + X_columns, filters = filters)
         dfs.append(df)

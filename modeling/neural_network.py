@@ -23,7 +23,7 @@ os.chdir(root_dir)
 sys.path.append(os.getcwd())
 
 from functions.load_data_from_parquet import load_data_from_parquet
-from modeling.architectures import LogitSharedEncoder_128_64_1
+from modeling.architectures import LogitSymmetric_256_128_64_1
 
 #%%
 if torch.cuda.is_available() :
@@ -165,9 +165,9 @@ def train_model(model, train_loader, val_loader, config: TrainConfig, device) :
 
 random_state = 42
 
-num_batches_to_load = 1
+num_batches_to_load = 8
 
-X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_mirror = True)
+X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_mirror = False)
 
 #%%
 # 85 / 7.5 / 7.5 split
@@ -216,7 +216,7 @@ train_loader = DataLoader(train_ds, batch_size = config.batch_size, shuffle = Tr
 val_loader = DataLoader(val_ds, batch_size = config.batch_size, shuffle = False)
 test_loader = DataLoader(test_ds, batch_size = config.batch_size, shuffle = False)
 
-model = LogitSharedEncoder_128_64_1(input_dim = X_train_t.shape[1]).to(DEVICE)
+model = LogitSymmetric_256_128_64_1(input_dim = X_train_t.shape[1]).to(DEVICE)
 model, history = train_model(model, train_loader, val_loader, config, DEVICE)
 
 # ================================================================
@@ -236,7 +236,7 @@ print("Test: ", test_metrics)
 # Save neural network state
 models_dir = root_dir / "modeling/model_states/"
 models_dir.mkdir(parents = True, exist_ok = True)
-save_path = Path(models_dir / "NNencoder_600k_mirror_ladder.pth")
+save_path = Path(models_dir / "NNsym_300k_rankedladder.pth")
 
 torch.save(model.state_dict, save_path) 
 # %%

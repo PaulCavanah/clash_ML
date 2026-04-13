@@ -1,4 +1,5 @@
 
+import torch
 import torch.nn as nn
 
 class Logit_in_256_128_64_1(nn.Module) : 
@@ -68,3 +69,97 @@ class LogitSharedEncoder_128_64_1(nn.Module) :
 
         return logit.squeeze(-1)
 
+class LogitEncoder_128_96_Head_32_1(nn.Module) :
+    """
+    Input is split in half, each half is fed into MLP encoder (e): 
+    PlrIn (A) -> 128 -> 96 (eA)
+    OppIn (B) -> 128 -> 96 (eB)
+    An MLP head (h) takes concatenated input from the encoder, e.g. 
+    eAB = cat(eA, eB) (192) -> 96 -> 32 -> 1 
+    The logit output is symmetric by = h(eAB) - h(eBA) = -(h(eBA) - h(eAB))
+    So in summary: 
+    logit(A, B) = h(cat(e(A), e(B))) - h(cat(e(B), e(A)))
+    logit(B, A) = -logit(A, B); logit(A, A) = 0
+    The intention of this model architecture is that all decks, whether player
+    or opponent, will be forced through the same encoder and thus will force the encoder
+    to learn some universal structure about decks. 
+    The head will then hopefully be able to learn how to contrast encoder outputs to predict who wins.
+    """
+
+    def __init__(self, input_dim : int, dropout : float = 0.2) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # Shared encoder MLP: 
+        self.encoder = nn.Sequential(
+            nn.Linear(self.half, 128),
+            nn.ReLU(),
+            nn.Linear(128, 96),
+            nn.ReLU()
+        )
+
+        # Head MLP
+        self.head = nn.Sequential(
+            nn.Linear(192, 96),
+            nn.ReLU(),
+            nn.Linear(96, 32),
+            nn.ReLU(),
+            nn.Linear(32, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        eA = self.encoder(A)
+        eB = self.encoder(B)
+
+        eAB = torch.cat([eA, eB], dim = 1) # encoder outputs concatenated with player first
+        eBA = torch.cat([eB, eA], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(eAB) - self.head(eBA)
+
+        return logit.squeeze(-1)
+    
+
+class LogitSymmetric_256_128_64_1(nn.Module) :
+    """
+    Version of the above which doesn't involve encoders
+    Raw input is fed into MLP (input -> 256 -> 128 -> 64 -> 1)
+    logit = u(A, B) - u(B, A)
+    """
+
+    def __init__(self, input_dim : int) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # MLP
+        self.head = nn.Sequential(
+            nn.Linear(input_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
+        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(AB) - self.head(BA)
+
+        return logit.squeeze(-1)
+
+# Idea: 
+# Raw one-hots -> hA and hB from encoder MLP
+# logit = u(hA, hB) - u(hB, hA)
+
+# Or if that doesn't work, just
+# Raw one-hots -> u (MLP), logit = u(A, B) - u(B, A) 
