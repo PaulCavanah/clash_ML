@@ -23,7 +23,7 @@ os.chdir(root_dir)
 sys.path.append(os.getcwd())
 
 from functions.load_data_from_parquet import load_data_from_parquet
-from modeling.architectures import LogitSymmetric_256_128_64_1
+from modeling.architectures import LogitEncoder_128_96_Head_32_1
 
 #%%
 if torch.cuda.is_available() :
@@ -94,7 +94,12 @@ class TrainConfig :
     max_epochs: int = 100
     patience: int = 10
 
-def train_model(model, train_loader, val_loader, config: TrainConfig, device) : 
+def train_model(model, train_loader, val_loader, save_state_path, config: TrainConfig, device) : 
+    if os.path.isfile(save_state_path) : 
+        state_dict = torch.load(save_state_path, weights_only = False)
+        model.load_state_dict(state_dict())
+        print("Previous model state loaded")
+
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr = config.lr)
 
@@ -154,6 +159,9 @@ def train_model(model, train_loader, val_loader, config: TrainConfig, device) :
             print(f"Early stopping triggered at epoch {epoch}.")
             break
 
+        torch.save(model.state_dict, save_state_path) 
+
+
     if best_state is not None:
         model.load_state_dict(best_state)
 
@@ -165,15 +173,15 @@ def train_model(model, train_loader, val_loader, config: TrainConfig, device) :
 
 random_state = 42
 
-num_batches_to_load = 8
+num_batches_to_load = 70
 
 X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_mirror = False)
 
 #%%
-# 85 / 7.5 / 7.5 split
+# 90 / 5 / 5 split
 
 X_train, X_temp, y_train, y_temp = train_test_split(
-    X, y, test_size=0.15, random_state=random_state, stratify=y
+    X, y, test_size=0.10, random_state=random_state, stratify=y
 )
 
 X_val, X_test, y_val, y_test = train_test_split(
@@ -207,6 +215,25 @@ del X_train, X_val, y_train, y_val
 gc.collect()
 
 # ================================================================
+#%% 
+
+network_name = "NNencodersym_28M_rankedladder"
+
+# For saving neural network state
+models_dir = root_dir / "modeling/model_states/"
+models_dir.mkdir(parents = True, exist_ok = True)
+save_state_path = Path(models_dir / f"{network_name}.pth")
+
+# Save neural network features (needed because new cards are periodically added to the game)
+features_dir = root_dir / "modeling/model_features/"
+features_dir.mkdir(parents = True, exist_ok = True)
+features_path = Path(features_dir / f"features_{network_name}.pkl")
+
+import pickle
+with open(features_path, "wb") as file : 
+    pickle.dump(list(feature_names), file) # convert to list so that there aren't pandas versioning issues
+
+
 #%%
 # Train the model
 
@@ -216,8 +243,8 @@ train_loader = DataLoader(train_ds, batch_size = config.batch_size, shuffle = Tr
 val_loader = DataLoader(val_ds, batch_size = config.batch_size, shuffle = False)
 test_loader = DataLoader(test_ds, batch_size = config.batch_size, shuffle = False)
 
-model = LogitSymmetric_256_128_64_1(input_dim = X_train_t.shape[1]).to(DEVICE)
-model, history = train_model(model, train_loader, val_loader, config, DEVICE)
+model = LogitEncoder_128_96_Head_32_1(input_dim = X_train_t.shape[1]).to(DEVICE)
+model, history = train_model(model, train_loader, val_loader, save_state_path, config, DEVICE)
 
 # ================================================================
 #%% 
@@ -232,11 +259,4 @@ print("Train:", train_metrics)
 print("Val:  ", val_metrics)
 print("Test: ", test_metrics)
 
-#%% 
-# Save neural network state
-models_dir = root_dir / "modeling/model_states/"
-models_dir.mkdir(parents = True, exist_ok = True)
-save_path = Path(models_dir / "NNsym_300k_rankedladder.pth")
-
-torch.save(model.state_dict, save_path) 
 # %%
