@@ -157,9 +157,13 @@ class LogitSymmetric_256_128_64_1(nn.Module) :
 
         return logit.squeeze(-1)
 
-# Idea: 
-# Raw one-hots -> hA and hB from encoder MLP
-# logit = u(hA, hB) - u(hB, hA)
-
-# Or if that doesn't work, just
-# Raw one-hots -> u (MLP), logit = u(A, B) - u(B, A) 
+class LogitCardEmbedding16_1600_400_100_25_1(nn.Module) : 
+    """
+    Cards get fed in as id numbers, which get turned into embeddings of d = 16, which are 
+    concatenated and fed into the MLP.  
+    Input is sparse with id of each present card at the card position, 0 otherwise. 
+    I.e. for 340 features (170 player, 170 opponent), this could look like 
+    [0, 0, 0, 4, 0, 0, 7, ...]
+    This would result in matrix of shape 340 x 16, which is flattened and put into MLP
+    """
+    pass

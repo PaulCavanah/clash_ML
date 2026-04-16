@@ -1,27 +1,12 @@
 
 # Produces CSV files with battle data in them
 
-# How the collector keeps track of previous battles/players: 
-# There is a postgresql database ("hash db") which has a table in it called "battles".
-# The primary key of the battles table is battle_id, which is a 16-character hash
-# of the player id, opponent id, and the datetime for the battle.
-# Every time that a battle is processed (i.e. converted from json to columnar format)
-# this hash is generated and checked for its membership in the battles table
-# (an O(1) operation). If the battle is in the table, it's rejected. Otherwise,
-# it's added to the table and the battle is added to the CSV file. 
-#
-# How players are added to the queue (for the battles to be collected): 
-# It's a simple recency search in the battles table (see above). When this
-# script is initially called, a query is made to the battles table asking for
-# the last N unique opponent IDs (was 10,000 when this was written). When this
-# list is depleted, the query is simply made again. The approach prioritizes
-# players who have played recent games, and those who have played against players
-# that have already been queried. A result of this is that many of the players
-# who are collected are in ranked/top-ladder matchups and they are queried repeatedly
-# over the course of days/weeks. There is almost certainly a more optimal way of
-# doing this, but this works well enough to collect new battles in the target demographic.
+# The approach is very simple - query a predetermined list of high ladder and ranked players (compiled from previously collected data).
+# Importantly, the index in the list needs to be kept track of and saved every time a CSV file is saved. 
 
-# All relevant data are included. 
+# Importantly, unlike previous versions, this collector system does not keep track of previous battles,
+# since doing so does not scale as well as simply making sure they do not collide at the
+# CSV -> parquet stage. Thus, there will be some redundant data in the CSV files produced by this collector.
 
 # Data that are included :
 # Player tag 
@@ -39,100 +24,75 @@
 # Datetime for game
 # Player card IDs (8 columns)
 # Player card levels (8 columns)
-# Player card evo/hero status (0 = default, 1 = evo, or 2 = hero)
+# Player card evo/hero status (8 columns) (0 = default, 1 = evo, or 2 = hero)
 # Player support tower ID
 # Opponent card IDs (8 columns)
 # Opponent card levels (8 columns)
-# Opponent card evo/hero status (0 default, 1 = evo, or 2 = hero)
+# Opponent card evo/hero status (8 columns) (0 default, 1 = evo, or 2 = hero)
 # Opponent support tower ID 
 
-#%% 
+#%%
+# Imports 
 import os 
 import pandas as pd 
 import datetime
 import requests
-import psycopg2 
 from pathlib import Path
-import hashlib
-import base64
 from functions.get_API_token import get_API_token
 import sys
+import pickle 
 
+# Get API token
 TOKEN = get_API_token()
 if TOKEN == None : 
-    sys.ext()
+    sys.exit()
+
+# Make clash_ML (root) the current directory and add it to path
+enum = [(i, dir) for i, dir in enumerate(os.getcwd().split("\\"))]
+root_dir = Path("\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if dir == "clash_ML"][0]]))
+os.chdir(root_dir)
+sys.path.append(os.getcwd())
 
 # Directory where csv will be saved
-data_dir = Path(os.getcwd() + "/data/raw_data/")
+data_dir = root_dir / "data/raw_data/"
 data_dir.mkdir(parents = True, exist_ok = True)
 
-num_battle_limit = 10000 #number of battles to collect for each cycle before saving
+num_battle_limit = 10000 #number of battles to collect for each cycle before saving as CSV
 
-num_hash_bytes = 12 #this always needs to be 12, or else the hash will be different
+# Load collector number
+collector_num_path = Path(root_dir / "data/collector.txt")
+if os.path.isfile(collector_num_path) : 
+    with open(collector_num_path, "r") as file : # collector.txt contains one value - the number of collector on this machine (e.g. "0")
+        collector = file.read()
+else : 
+    raise(Exception("No collector.txt file found"))
+print("Collector: ", collector)
 
-local_hash_set = set() #for comparing against games collected only in this session
-
-# Connect to hash db (for keeping track of battles and getting queue): 
-conn = psycopg2.connect(
-    host = "localhost",
-    database = "hash_db",
-    user = "postgres",
-    password = "Onetwothree123!",
-    port = "5432"
-)
-
-cur = conn.cursor()
-
-# Create battles table if it doesn't exist:
-create_table_query = """
-CREATE TABLE IF NOT EXISTS battles (
-    battle_id TEXT PRIMARY KEY,
-    battle_time TEXT NOT NULL,
-    player_tag TEXT NOT NULL,
-    opponent_tag TEXT NOT NULL,
-    player_win BOOLEAN
-);
-"""
-
-cur.execute(create_table_query)
-conn.commit()
-
-# The below query inserts the hash of the battle (battle_id, as primary key), along with
-# some other info. If the primary key is already in there, it doesn't execute the insert
-insert_query = """
-INSERT INTO battles (
-    battle_id,
-    battle_time,
-    player_tag,
-    opponent_tag,
-    player_win
-)
-VALUES (%s, %s, %s, %s, %s)
-ON CONFLICT (battle_id) DO NOTHING;
-"""
-
-# The below query checks if the hash of the battle (battle_id) exists
-battle_exist_query = """
-    SELECT EXISTS (
-        SELECT 1
-        FROM battles
-        WHERE battle_id = %s
-    );
-"""
-
-# The below query gets 10,000 unique opponent tags from the most recent battles
-tag_select_query = """
-SELECT DISTINCT battle_time, opponent_tag 
-    FROM battles
-    ORDER BY battle_time DESC
-    LIMIT 10000;
-"""
+# Load the list for this collector
+list_name = "20260415_ladder13k_ranked.pkl"
+list_path = root_dir / f"player_list/lists/collector_{collector}_{list_name}"
+if os.path.isfile(list_path) : 
+    with open(list_path, "rb") as file : 
+        player_list = pickle.load(file)
+else : 
+    raise(Exception("No list found at list path"))
+print("Loaded list of ", len(player_list), " players")
+    
+# Load the last saved index for the list
+last_index_path = root_dir / "data/last_index.txt"
+if os.path.isfile(last_index_path) : 
+    with open(last_index_path, "r") as file :
+        last_index = int(file.read())
+else : 
+    with open(last_index_path, "w") as file : 
+        last_index = 0 
+        file.write(str(last_index))
+print("Starting position in queue: ", last_index)
 
 #%%
 #lambda function to reformat raw tags to be queried by API
 tag_reformat = lambda raw_id: "%23" + raw_id[1:]
 
-tag_queue = [] # list of players to be queried on the API
 row_list = [] # list of games, formatted as dictionaries of data
 
 while True : 
@@ -143,16 +103,10 @@ while True :
 
         # Initiate data collection cycle
         while len(row_list) <= num_battle_limit : 
-
-            # Get player who is first in queue
-            if len(tag_queue) > 0 :  
-                current_player_tag = tag_reformat(tag_queue.pop(0))
-            else : 
-                print("Re-filling tag queue...")
-                cur.execute(tag_select_query)
-                tag_queue = [d[1] for d in cur.fetchall()]
-                continue
             
+            current_player_tag = tag_reformat(player_list[last_index])
+            print(f"current player: {current_player_tag}", f"index: {last_index}")
+
             # API call - get all battle log data from player
             url = f"https://api.clashroyale.com/v1/players/{current_player_tag}/battlelog" 
             headers = {"Authorization": f"Bearer {TOKEN}"}
@@ -204,30 +158,6 @@ while True :
                 | {f"o_card_{i+1}_evohero" : 0 for i in range(8)} \
                 | {f"o_tower" : battle["opponent"][0]["supportCards"][0]["id"]}
 
-                # Get battle_id (hash) 
-                ordered_tags = sorted((new_row["player_tag"], new_row["opponent_tag"])) # this is crucial so that player/opponent swaps don't affect hash
-                input_str = f"{new_row["game_time"]}|{ordered_tags[0]}|{ordered_tags[1]}".encode("utf-8")
-                digest = hashlib.blake2b(input_str, digest_size = num_hash_bytes).digest()
-                battle_id = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
-                battle_collected_in_this_session = battle_id in local_hash_set 
-
-                # Test whether this game occurred before using hash database
-                cur.execute(battle_exist_query, (battle_id, ))
-                battle_in_database = cur.fetchone()[0]
-                if battle_in_database or battle_collected_in_this_session: # don't process this game if it's already present
-                    print("Skipping; battle occurred before")
-                    continue
-
-                # Insert battle's identity data into db and local hash set
-                db_insert_data = [battle_id, 
-                                  new_row["game_time"],
-                                  new_row["player_tag"],
-                                  new_row["opponent_tag"], 
-                                  bool(new_row["player_crowns"] >= new_row["opponent_crowns"])
-                ]
-                cur.execute(insert_query, db_insert_data)
-                local_hash_set.add(battle_id)
-                
                 # Get card information for player and opponent decks 
                 player_deck = [card for card in battle["team"][0]["cards"]]
                 opponent_deck = [card for card in battle["opponent"][0]["cards"]]
@@ -261,11 +191,18 @@ while True :
 
                 print("battle time: " + new_row["game_time"], "player id: " + new_row["player_tag"], "gamemode: " + new_row["gamemode"], "row num: " + str(len(row_list)))
 
-        conn.commit() # Necessary so that the database insertions take place
+            # Move forward one in the player queue
+            last_index += 1 
+            if last_index > len(player_list) : 
+                player_list = 0 
 
         # Save the rows as a csv with a unique timestamp: 
         df = pd.DataFrame(row_list)
         df.to_csv(data_dir / f"{collection_cycle_timestamp}.csv")
+
+        # Save the last index for the player queue 
+        with open(last_index_path, "w") as file : 
+            file.write(str(last_index))
 
         row_list = []
         local_hash_set = set()

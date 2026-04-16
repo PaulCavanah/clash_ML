@@ -26,6 +26,12 @@ figures/
 # Sandbox
 sandbox/
 
+# Archive
+archive/
+
+# Player list
+player_list/lists/
+
 # Jupyter
 .ipynb_checkpoints/
 
