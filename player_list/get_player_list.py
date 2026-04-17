@@ -1,6 +1,7 @@
 
 # Get the list of players for ladder (above a certain trophy level) and ranked gamemodes
 
+#%%
 from pathlib import Path
 import pandas as pd
 import os 
@@ -13,7 +14,7 @@ os.chdir(root_dir)
 
 parquet_dir = Path(os.getcwd() + "/data/parquet")
 
-ladder_minimum = 13000
+ladder_minimum = 12000
 ranked_minimum = 0
 
 # Get tags from parquet dataset games that meet criteria
