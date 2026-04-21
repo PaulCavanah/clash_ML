@@ -5,3 +5,5 @@ SELECT DISTINCT battle_time, opponent_tag
 
 ALTER TABLE battles
 ALTER COLUMN battle_time TYPE timestamp 
+
+DROP TABLE battles

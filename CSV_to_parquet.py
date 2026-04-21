@@ -1,4 +1,4 @@
-# Script to batch-create parquet files from raw csv data
+# Script to batch-create parquet files from raw csv data (a key preprocessing step)
 
 # There are several advantages of performing this batch-conversion and using parquet files instead of csv:
 # 1. Data is stored in an ML-friendly format: 
@@ -8,12 +8,19 @@
 # 2. Reading from parquet files is much faster than CSV
 # 3. Only the data of interest needs to be read (column-based storage)
 
-# The setup is admittedly a lot more work than CSV (which is as simple as it gets), 
-# but when properly implemented, a .parquet database should be more efficient and agile
-# for ML training and testing than a .csv database 
+# The setup is more work than CSV (which is as simple as it gets setup-wise), 
+# but when properly implemented, a .parquet database is more efficient and agile
+# for ML training and testing than a .csv database
+
+# Take an example (from experience) - getting a "player list" with only players above 12,000 trophies and/or ranked games.
+# At the time of typing, I have 70 million games of data. 
+# 1. parquet method - From start to finish, it's about ten seconds of run time and a few lines of code
+# 2. CSV method - Can't even be performed on my current computer due to memory constraints. But even
+# if I could, it would take 2 minutes to load 70,000 CSV files into memory. Then I would have to 
+# select the data from memory only after I loaded it, which takes more code, more time, and more memory.  
 
 # Some implementation details: 
-# In order to efficiently convert the raw information in the .csv files (most importantly, 
+# - Vectorization: In order to efficiently convert the raw information in the .csv files (most importantly, 
 # card IDs and evo/hero levels) to the appropriately typed and formatted columns in the .parquet files, 
 # a vectorization-based conversion is used. The original version of this script used loops to iteratively
 # go through each file and then lookup one-hot columns with the card ID/evo-hero level and set it to True.
@@ -22,7 +29,15 @@
 # (Nrows,16) matrix of corresponding row numbers, and 3) a single-line selection of all the one-hot column indices and
 # their corresponding rows and setting them to True 
 # The original looping approach (row-by-row search and index) took about 6.5 hours for a batch of 500 CSV files, 
-# The vectorized approach took just under a minute 
+# The vectorized approach took just under a minute for those 500 files.
+# - No duplicates (using hashing): To prevent duplicates in the parquet database, and to efficiently check for duplicates, 
+# a hashing system is used. Three pieces of information are used from each battle to create a unique "battle id"
+# for each battle to ensure 100% that there are no duplicates: the player's tag, the opponent's tag,
+# and the battle datetime (in the format originally retrieved from the API). Just the datetime is not
+# precise enough to distinguish between battles (it's only precise to a second), and
+# both the player and opponent tag (sorted alphabetically when concatenated with the datetime) are needed
+# to distinguish the game from all other games in the database. Importantly, the battle id is stored as a
+# column in the parquet database for easy access 
 
 #%%
 from pathlib import Path
@@ -34,9 +49,15 @@ import sys
 import datetime
 from tqdm import tqdm
 import requests
+import numpy as np 
+
+# Set root dir as cwd
+enum = [(i, dir) for i, dir in enumerate(os.getcwd().split("\\"))]
+root_dir = "\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if dir == "clash_ML"][0]])
+os.chdir(root_dir)
+
 from functions.get_API_token import get_API_token
 from functions.get_card_onehot_columns import get_card_onehot_columns
-import numpy as np 
 
 #%% 
 
@@ -115,56 +136,76 @@ csv_filenames = [filepath.name for filepath in raw_dir.glob("*.csv")]
 num_files = len(csv_filenames)
 num_batches = num_files // csv_batch_size
 
+#%% 
+# Load battle ids from currently existing dataset
+battle_ids = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = ["battle_id"])["battle_id"]
+print("Previous dataset battle ids loading...")
+print("Unique battle ids: ", pd.unique(battle_ids).shape[0], "Num battles: ", battle_ids.shape[0])
+
 #%%
 # If there are batches to convert, run them 
 if num_batches > 0 :
-    for batch_i in range(num_batches) :
+    for batch_i in tqdm(range(num_batches)) :
+
         # Use timestamp to uniquely identify the parquet batch file
         dt = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         batch_filepath = parquet_dir / (dt + ".parquet")
         
-        df_list = []
         batch_csv_files = csv_filenames[(batch_i)*csv_batch_size : (batch_i+1)*csv_batch_size]
+        # Load all csvs at once  
+        batch_df_raw = pd.concat([single_df for single_df in [pd.read_csv(raw_dir / csv_file, index_col = 0) for csv_file in batch_csv_files]], axis = 0, ignore_index = True)
+        batch_df_raw.fillna(0, inplace = True) #replace NaN values with 0 (e.g. in 4 card games, there are empty values for last 4 cards in decks)
+        batch_df_raw = batch_df_raw.astype(dtype = d_types) #convert to appropriate datatypes 
 
-        for csv_file in tqdm(batch_csv_files, desc = f"Batch {batch_i+1}/{num_batches}") : 
-            # Load in dataframe for single .csv file
-            single_df = pd.read_csv(raw_dir / csv_file)
-            single_df.fillna(0, inplace = True) #replace NaN values with 0 (e.g. in 4 card games, there are empty values for last 4 cards in decks)
-            single_df = single_df.astype(dtype = d_types) #convert to appropriate datatypes 
-            num_rows = single_df.shape[0]
+        # Get battle ids (hashes) from csv data and make it the first column of the dataframe
+        batch_iddf = batch_df_raw.loc[:, ["player_tag", "opponent_tag", "game_time"]] # Data used to make hash
+        batch_iddf.iloc[:, :2] = np.sort(batch_iddf.iloc[:, :2], axis = 1) # Sort player tags and opponent tags alphabetically 
+        str_concat = batch_iddf.iloc[:, 0] + batch_iddf.iloc[:, 1] + batch_iddf.iloc[:, 2] # Create concatenated string input to hash 
+        batch_hashes = pd.util.hash_pandas_object(str_concat, index = False) # Use pandas built in hash function to generate battle id
+        batch_hashes_df = batch_hashes.to_frame(name = "battle_id") # convert to dataframe (for concatenation later)
+        # If there are any duplicate battle id rows within the CSV, or from the previous database, don't include them
+        duplicates = batch_hashes_df.duplicated() | batch_hashes.isin(battle_ids)
+        batch_df = batch_df_raw.loc[~duplicates, :]
+        batch_hashes_df = batch_hashes_df.loc[~duplicates, :]
+        print("Removed ", np.sum(duplicates), " duplicate games")
+        num_rows = batch_df.shape[0]
 
-            # Perform matrix operations to get cardkeys 
-            card_keys = np.array([single_df[f"p_card_{i+1}"] + 1000*(single_df[f"p_card_{i+1}_evohero"].astype(np.uint32)+1) + 10000 for i in range(8)] + [single_df[f"o_card_{i+1}"] + 1000*(single_df[f"o_card_{i+1}_evohero"].astype(np.uint32)+1) + 20000 for i in range(8)])
+        battle_ids = pd.concat([battle_ids, batch_hashes_df.loc[:, "battle_id"]])
 
-            # Get corresponding row numbers for each card key 
-            row_range = np.arange(num_rows)
-            row_idx = np.broadcast_to(row_range[np.newaxis, ], card_keys.shape)
+        pqt_df = pd.concat([batch_hashes_df, batch_df], axis = 1) # Concatenate hashes and data along columns
+        pqt_df = pqt_df.reset_index(drop = True) # Necessary to concatenate with OH columns later (which have default index)
 
-            # Card keys that are less than 100000 are due to empty card id - remove these
-            valid = card_keys > 100000
-            card_keys = card_keys[valid] 
-            row_idx = row_idx[valid] 
+        # Perform matrix operations to get cardkeys 
+        card_keys = np.array([pqt_df[f"p_card_{i+1}"] + 1000*(pqt_df[f"p_card_{i+1}_evohero"].astype(np.uint32)+1) + 10000 for i in range(8)] + [pqt_df[f"o_card_{i+1}"] + 1000*(pqt_df[f"o_card_{i+1}_evohero"].astype(np.uint32)+1) + 20000 for i in range(8)])
 
-            # Get one-hot column indices that correspond to card keys, using sparse array lookup 
-            col_idx = cardkey_to_colnum_lookup[card_keys]
+        # Get corresponding row numbers for each card key 
+        row_range = np.arange(num_rows)
+        row_idx = np.broadcast_to(row_range[np.newaxis, ], card_keys.shape)
 
-            # Create one-hot matrix and fill with trues at card row/column indices
-            OH_mat = np.zeros(shape = (num_rows, len(OH_columns)), dtype = bool)
-            OH_mat[row_idx, col_idx] = True 
+        # Card keys that are less than 100000 are due to empty card id - remove these
+        valid = card_keys > 100000
+        card_keys = card_keys[valid] 
+        row_idx = row_idx[valid] 
 
-            # Concatenate main dataframe with one-hot matrix
-            single_df = pd.concat([single_df, pd.DataFrame(data = OH_mat, columns = OH_columns)], axis = 1) # Axis must be set to 1 here
+        # Get one-hot column indices that correspond to card keys, using sparse array lookup 
+        col_idx = cardkey_to_colnum_lookup[card_keys]
 
-            # Append dataframe to batch df list
-            df_list.append(single_df)
+        # Create one-hot matrix and fill with trues at card row/column indices
+        OH_mat = np.zeros(shape = (num_rows, len(OH_columns)), dtype = bool)
+        OH_mat[row_idx, col_idx] = True 
 
-        df = pd.concat(df_list, ignore_index = True) #Contains the data from all of the batch CSVs
+        # Concatenate main dataframe with one-hot matrix
+        pqt_df = pd.concat([pqt_df, pd.DataFrame(data = OH_mat, columns = OH_columns)], axis = 1) # Axis must be set to 1 here
 
         print("Saving parquet...")
-        df.to_parquet(batch_filepath, engine = "pyarrow", compression = "zstd", index = False)
+        pqt_df.to_parquet(batch_filepath, engine = "pyarrow", compression = "zstd", index = False)
 
         # Move all CSV files in the batch to converted
+        print("Moving raw data...")
         for csv_file in batch_csv_files : 
             shutil.move(raw_dir / csv_file, done_dir / csv_file) 
 
+
 print("Done converting CSV to parquet")
+battle_ids = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = ["battle_id"])["battle_id"]
+print("Num battles in new dataset: ", battle_ids.shape[0])
