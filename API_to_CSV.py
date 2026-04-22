@@ -69,7 +69,7 @@ else :
 print("Collector: ", collector)
 
 # Load the list for this collector
-list_name = "20260415_ladder13k_ranked.pkl"
+list_name = "20260421_midladder_8000_8500.pkl"
 list_path = root_dir / f"player_list/lists/collector_{collector}_{list_name}"
 if os.path.isfile(list_path) : 
     with open(list_path, "rb") as file : 
