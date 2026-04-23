@@ -69,8 +69,8 @@ else :
 print("Collector: ", collector)
 
 # Load the list for this collector
-list_name = "20260421_midladder_8000_8500.pkl"
-list_path = root_dir / f"player_list/lists/collector_{collector}_{list_name}"
+list_name = "20260415_ladder13k_ranked"
+list_path = root_dir / f"player_list/lists/collector_{collector}_{list_name}.pkl"
 if os.path.isfile(list_path) : 
     with open(list_path, "rb") as file : 
         player_list = pickle.load(file)

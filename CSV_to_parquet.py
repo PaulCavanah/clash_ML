@@ -70,6 +70,7 @@ done_dir = Path(os.getcwd() + "/data/raw_data_converted")
 parquet_dir = Path(os.getcwd() + "/data/parquet")
 
 raw_dir.mkdir(parents = True, exist_ok = True)
+done_dir.mkdir(parents = True, exist_ok = True)
 parquet_dir.mkdir(parents = True, exist_ok = True)
 
 csv_batch_size = 100 # number of csv files (batch size) to convert to a single parquet file at a time

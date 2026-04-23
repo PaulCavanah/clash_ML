@@ -1,4 +1,5 @@
-# Use neural network to predict win/loss with deck data
+
+# Take a model that's been pretrained and fine tune it
 
 #%%
 import copy
@@ -27,24 +28,22 @@ from modeling.architectures import LogitSymmetric_256_128_64_1
 architecture = LogitSymmetric_256_128_64_1
 from functions.model_training import train_model, evaluate_model, TrainConfig
 
-#%%
 if torch.cuda.is_available() :
     DEVICE = torch.device("cuda")
 else : 
     DEVICE = torch.device("cpu")
 
 print("Using device: ", DEVICE)
-    
-# ================================================================
+
 #%% 
-# Load data 
+# Load data to fine tune with
 
 random_state = 42
 
 num_batches_to_load = 115
 
-ladder_minimum = 5000
-ladder_maximum = 10000
+ladder_minimum = 8500
+ladder_maximum = 9000
 filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">", ladder_minimum), ("player_trophies", "<", ladder_maximum)]]
 
 X, y, feature_names = load_data_from_parquet(num_batches = num_batches_to_load, player_mirror = False, filters = filters)
@@ -86,40 +85,48 @@ test_ds = TensorDataset(X_test_t, y_test_t)
 del X_train, X_val, y_train, y_val
 gc.collect()
 
-# ================================================================
 #%% 
 
-network_name = "NNsym_20M_ladder5k10k_pretrain"
+pretrained_network_name = "NNsym_20M_ladder5k10k_pretrain"
+finetuned_network_name = "NNsym_20M_ladder9k_finetuned"
 
-# For saving neural network state
 models_dir = root_dir / "modeling/model_states/"
 models_dir.mkdir(parents = True, exist_ok = True)
-save_state_path = Path(models_dir / f"{network_name}.pth")
+
+# Load pre-trained model 
+model = architecture(input_dim = X_train_t.shape[1]).to(DEVICE)
+pretrained_state_path = Path(models_dir / f"{pretrained_network_name}.pth")
+pretrained_state_dict = torch.load(pretrained_state_path, weights_only = False)
+model.load_state_dict(pretrained_state_dict())
+
+# For saving neural network state (fine-tuned)
+save_state_path = Path(models_dir / f"{finetuned_network_name}.pth")
 
 # Save neural network features (needed because new cards are periodically added to the game)
 features_dir = root_dir / "modeling/model_features/"
 features_dir.mkdir(parents = True, exist_ok = True)
-features_path = Path(features_dir / f"features_{network_name}.pkl")
+features_path = Path(features_dir / f"features_{finetuned_network_name}.pkl")
 
 import pickle
 with open(features_path, "wb") as file : 
     pickle.dump(list(feature_names), file) # convert to list so that there aren't pandas versioning issues
 
+config = TrainConfig(
+    max_epochs = 10
+)
+
 #%%
 # Train the model
-
-config = TrainConfig()
 
 train_loader = DataLoader(train_ds, batch_size = config.batch_size, shuffle = True)
 val_loader = DataLoader(val_ds, batch_size = config.batch_size, shuffle = False)
 test_loader = DataLoader(test_ds, batch_size = config.batch_size, shuffle = False)
 
-model = architecture(input_dim = X_train_t.shape[1]).to(DEVICE)
 model, history = train_model(model, train_loader, val_loader, save_state_path, config, DEVICE)
 
-# ================================================================
 #%% 
 # Final evaluation 
+model.load_state_dict(pretrained_state_dict())
 train_metrics = evaluate_model(model, train_loader, DEVICE)
 val_metrics = evaluate_model(model, val_loader, DEVICE)
 test_metrics = evaluate_model(model, test_loader, DEVICE)

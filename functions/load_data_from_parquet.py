@@ -10,7 +10,7 @@ import numpy as np
 num_batches = 1
 #%%
 
-def load_data_from_parquet(num_batches, player_mirror = True) : 
+def load_data_from_parquet(num_batches, player_mirror = True, filters = None) : 
     # Load in X and Y data from the parquet files: 
     # Due to card updates, the schema evolves - parquet files may have different columns
     # The approach to merging these schemas is to load in each parquet file individually
@@ -32,15 +32,10 @@ def load_data_from_parquet(num_batches, player_mirror = True) :
         columns = pf.schema.names
         X_columns = [column for column in columns if column[0:3] in ("Plr", "Opp")]
         Y_columns = ["player_crowns", "opponent_crowns"]
-
-        # only include ladder and ranked matches
-        # filters = [[("gamemode", "==", "Ranked1v1_NewArena")],
-        #             [("gamemode", "==", "Ladder")], 
-        #              [("gamemode", "==", "Ranked1v1_NewArena2")]]
-        #filters = [[("gamemode", "==", "Ladder")]]
         
-        filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , 10000)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", 1000)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", 1000)]]
-
+        if filters == None :
+            # Default
+            filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , 10000)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", 1000)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", 1000)]]
 
         df = pd.read_parquet(path = parquet_dir / filename, engine = "pyarrow", columns = Y_columns + X_columns, filters = filters)
         dfs.append(df)
@@ -58,7 +53,7 @@ def load_data_from_parquet(num_batches, player_mirror = True) :
     df.fillna(0, inplace = True)
 
     # X and Y
-    X = df.iloc[:, 2:]
+    X = df.iloc[:, 2:].astype(bool)
     y = df["player_crowns"] > df["opponent_crowns"]
 
     #%%
