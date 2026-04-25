@@ -57,7 +57,7 @@ root_dir = "\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if di
 os.chdir(root_dir)
 
 from functions.get_API_token import get_API_token
-from functions.get_card_onehot_columns import get_card_onehot_columns
+from functions.get_cards import get_card_onehot_columns
 
 #%% 
 

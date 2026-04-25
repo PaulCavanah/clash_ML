@@ -5,20 +5,20 @@ import pandas as pd
 import pyarrow.parquet as pq
 import gc
 import numpy as np
-from functions.get_card_onehot_columns import get_card_onehot_columns
+from functions.get_cards import get_all_cards
 from functions.get_API_token import get_API_token
 
 #%%
 num_batches = 1
 #%%
 
-def load_level_onehot(num_batches, filters = None, normalize_levels = False) : 
+def load_level_onehot(num_batches, filters = None) : 
     
     parquet_dir = Path(os.getcwd() + "/data/parquet")
 
     # Get up-to-date card types and one-hot column names using logic on data from API   
     TOKEN = get_API_token() 
-    card_types, OH_columns = get_card_onehot_columns(TOKEN)  
+    card_types, OH_columns = get_all_cards(TOKEN)  
 
     # Make it easy to get column index from the name of the column (for the vectorization below)
     OH_name_to_idx = {column : i for i, column in enumerate(OH_columns)}

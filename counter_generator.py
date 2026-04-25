@@ -1,6 +1,27 @@
 
-# Given an input deck, find a deck that counters it pretty well
+# Given an input deck, find a deck that counters it well
 # Initial approach: brute force search iterating over deck slots and cards, with multiple passes
+
+# What to do now: 
+# In summary - CONDENSE and modularize this process for future 
+# Components right now: 
+# 1. Imports
+# 2. Get feature names from model
+# 3. Get base, evos, hero/champion column ids from feature names
+# 4. Get collisions of column ids 
+# 5. Load model
+# 6. Set player deck / column indices of player cards
+# 7. Run algorithm
+# 8. Evaluate result
+
+# All of this is too jumbled 
+
+# Ultimately, I should have a script or process where I just put in a deck with
+# levels, and I choose from some options:  
+# 1. choose a player tag and these are the cards to choose from
+# 2. choose any cards
+# 3. choose only base cards
+# 4. etc... 
 
 #%% 
 # Imports and finding root dir
@@ -8,7 +29,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import os 
-from pathlib import Path
 import pandas as pd
 import numpy as np
 
@@ -17,69 +37,58 @@ enum = [(i, dir) for i, dir in enumerate(os.getcwd().split("\\"))]
 root_dir = "\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if dir == "clash_ML"][0]])
 os.chdir(root_dir)
 
+# Specify model architecture and name, then load model
 from modeling.architectures import *
 architecture = LogitSymmetric_256_128_64_1
 
+model_name = "NNsym_22M_ladder5k10k_levels"
+
+from functions.load_model import load_nn_model
+model, feature_names = load_nn_model(architecture, model_name)
+
+# Get available cards from a player tag
+from functions.get_cards import get_player_cards
+
+tag = "%2389QUL8YCQ" # Some random ladder player
+
+
+
+
 #%%
-# Get feature labels and parse opponent card types (base/evo/hero)
-import pickle 
-model_name = "NNsym_28M_rankedladder"
 
-features_path = root_dir + f"/modeling/model_features/features_{model_name}.pkl"
-with open(features_path, "rb") as file :
-   feature_names = pickle.load(file)
-print(f"features ({len(feature_names)}): ", feature_names)
-
-# column indices of cards 
+# column indices of available cards (columns of feature_names, i.e. model input)
 base = [] 
 evos = [] 
 hero = [] # includes heros and champions
-feature_splits = []
-for i, feature in enumerate(feature_names) : 
-    feature_split = feature.split(" ")
-    if "Opp" in feature_split : 
-        if "Evo" in feature_split : 
-            evos.append(i)
-        elif "Hero" in feature_split or " ".join(feature_split[1:]) in ["Skeleton King", "Archer Queen", "Goblinstein", "Golden Knight", "Little Prince", "Mighty Miner", "Monk", "Boss Bandit"]: 
-            hero.append(i)
-        else : 
-            base.append(i)
-    feature_splits.append(feature_split)
+opp_half = len(feature_names) // 2
+feature_collisions = {i : [] for i in range(opp_half, len(feature_names))} # column id : [column ids that collide]
 
-#%%
-# get dictionary of for which feature index, other features indices collide (e.g. Knight collides with Evo Knight and Hero Knight)
-feature_name_collisions = dict()
-for i, feature_split_i in enumerate(feature_splits) : 
-    if i not in feature_name_collisions : 
-        feature_name_collisions[i] = []
-    for j, feature_split_j in enumerate(feature_splits) :
-        if i == j : 
-            continue 
+for i_, feature in enumerate(feature_names[opp_half:]) : # only opp columns matter here since player deck is constant for this algorithm
+    i = i_ + opp_half
+    feature_split = feature.split(" ") # e.g. ["Opp", "Hero", "Mega", "Minion"]
+    split_len = len(feature_split) # number of words in the split (e.g. 4)
 
-        if ("Plr" in feature_split_i and "Plr" in feature_split_j) or ("Opp" in feature_split_i and "Opp" in feature_split_j): 
-            if "Evo" in feature_split_i or "Hero" in feature_split_i : 
-                name_i = " ".join(feature_split_i[2:])
-            else : 
-                name_i = " ".join(feature_split_i[1:])
+    if "Evo" in feature_split : 
+        evos.append(i)
+        name_start = 2 #index of name start 
+    elif "Hero" in feature_split or " ".join(feature_split[1:]) in ["Skeleton King", "Archer Queen", "Goblinstein", "Golden Knight", "Little Prince", "Mighty Miner", "Monk", "Boss Bandit"]: 
+        hero.append(i)
+        name_start = 2
+    else : 
+        base.append(i)
+        name_start = 1
 
-            if "Evo" in feature_split_j or "Hero" in feature_split_j : 
-                name_j = " ".join(feature_split_j[2:])
-            else : 
-                name_j = " ".join(feature_split_j[1:])
+    base_name = " ".join(feature_split[name_start:]) # E.g. "Mega Minion"
 
-            if name_i == name_j : 
-                feature_name_collisions[i].append(j)
+    # Get collisions for this feature
+    for j_, feature_j in enumerate(feature_names[opp_half:]) : 
+        j = j_ + opp_half
+        feature_split_j = feature_j.split(" ")[1:] # Get rid of "Opp" 
+        if "Evo" in feature_split_j or "Hero" in feature_split_j :
+            feature_split_j.pop(0) # Get rid of "Evo" or "Hero"
+        if base_name == " ".join(feature_split_j) : # Only the base name remains
+            feature_collisions[i].append(j)
 
-print(feature_name_collisions)
-
-#%% 
-# load model from architecture/state
-state_path = Path(os.getcwd() + f"/modeling/model_states/{model_name}.pth")
-model = architecture(input_dim = 340).to("cpu")
-state_dict = torch.load(state_path, weights_only = False)
-model.load_state_dict(state_dict())
-model.eval()
-print("num parameters: ", sum(param.numel() for param in model.parameters()))
 
 #%%
 # Set player input deck
@@ -125,14 +134,14 @@ for cycle in range(num_cycles) :
             tens_in[0, int(cards_in_deck[slot])] = 0 # current card removed in tensor during search
 
         # Getting cards to search for the slot
-        cards_to_search = [b for b in base if b not in cards_in_deck]
+        #cards_to_search = [b for b in base if b not in cards_in_deck]
 
-        # if slot == 0 or slot == 2 : # evo slot 
-        #     cards_to_search = [evo for evo in evos if evo not in cards_in_deck]
-        # elif slot == 1 : # hero/champion slot
-        #     cards_to_search = [h for h in hero if h not in cards_in_deck]
-        # else : # base card slot
-        #     cards_to_search = [b for b in base if b not in cards_in_deck]
+        if slot == 0 or slot == 2 : # evo slot 
+            cards_to_search = [evo for evo in evos if evo not in cards_in_deck]
+        elif slot == 1 : # hero/champion slot
+            cards_to_search = [h for h in hero if h not in cards_in_deck]
+        else : # base card slot
+            cards_to_search = [b for b in base if b not in cards_in_deck]
 
         for card in cards_to_search :
             tens_in[0, card] = 1 # set slot to card 
@@ -150,8 +159,6 @@ for cycle in range(num_cycles) :
 # Look at deck output
 features_np = np.array(feature_names)
 print(features_np[cards_in_deck.astype(np.int16)])
-
-# PROBLEM - handle duplicate cards (e.g. Evo Wizard, base wizard in same deck)
 
 # %%
 # Look at estimated win probability
