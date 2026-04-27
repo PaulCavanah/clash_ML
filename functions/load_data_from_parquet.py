@@ -12,7 +12,7 @@ from functions.get_API_token import get_API_token
 num_batches = 1
 #%%
 
-def load_level_onehot(num_batches, filters = None) : 
+def load_level_onehot(num_batches = "all", filters = None) : 
     
     parquet_dir = Path(os.getcwd() + "/data/parquet")
 
@@ -52,8 +52,9 @@ def load_level_onehot(num_batches, filters = None) :
 
     # Load 
     parquet_dir = Path(os.getcwd() + "/data/parquet")
-
-    parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")][0:num_batches]
+    parquet_filenames = list([filepath.name for filepath in parquet_dir.glob("*.parquet")])
+    if num_batches != "all" : 
+        parquet_filenames = parquet_filenames[-num_batches:] 
 
     dfs = []
 
@@ -106,7 +107,7 @@ def load_level_onehot(num_batches, filters = None) :
     
     
 
-def load_plain_onehot(num_batches, player_mirror = False, filters = None) : 
+def load_plain_onehot(num_batches = "all", player_mirror = False, filters = None) : 
     # Load in X and Y data from the parquet files: 
     # Due to card updates, the schema evolves - parquet files may have different columns
     # The approach to merging these schemas is to load in each parquet file individually
@@ -116,10 +117,11 @@ def load_plain_onehot(num_batches, player_mirror = False, filters = None) :
     # Player mirror option - mirrors the data across the player/opponent dimension and
     # concatenates it to the dataframe (for asymmetric models)
 
-    #%%
+    # Load data
     parquet_dir = Path(os.getcwd() + "/data/parquet")
-
-    parquet_filenames = [filepath.name for filepath in parquet_dir.glob("*.parquet")][0:num_batches]
+    parquet_filenames = list([filepath.name for filepath in parquet_dir.glob("*.parquet")])
+    if num_batches != "all" : 
+        parquet_filenames = parquet_filenames[-num_batches:] 
 
     dfs = []
 
@@ -176,4 +178,4 @@ def load_plain_onehot(num_batches, player_mirror = False, filters = None) :
         
     print("Loaded Data with shape:", f"X:{X.shape}, y:{y.shape}, mirroring = {player_mirror}" )
 
-    return X, y, feature_names
+    return np.array(X), np.array(y), feature_names
