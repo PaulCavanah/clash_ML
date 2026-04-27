@@ -39,72 +39,46 @@ os.chdir(root_dir)
 
 # Specify model architecture and name, then load model
 from modeling.architectures import *
-architecture = LogitSymmetric_256_128_64_1
-
-model_name = "NNsym_22M_ladder5k10k_levels"
-
 from functions.load_model import load_nn_model
+
+architecture = LogitSymmetric_256_128_64_1
+model_name = "NNsym_20M_ladder5k10k_pretrain"
 model, feature_names = load_nn_model(architecture, model_name)
 
 # Get available cards from a player tag
 from functions.get_cards import get_player_cards
+from functions.get_API_token import get_API_token
 
-tag = "%2389QUL8YCQ" # Some random ladder player
-
-
-
+TOKEN = get_API_token()
+#tag = "%2389QUL8YCQ" # Some random ladder player
+tag = "%23G9YV9GR8R" # Mohamed Light
+col_to_level, name_to_level = get_player_cards(tag, TOKEN, feature_names)
+opp_half = len(feature_names) // 2 
+available_cards = {col : level for col, level in col_to_level.items() if col >= opp_half} # as column ids 
+# cards are only included on the opponent side
 
 #%%
-
-# column indices of available cards (columns of feature_names, i.e. model input)
-base = [] 
-evos = [] 
-hero = [] # includes heros and champions
-opp_half = len(feature_names) // 2
-feature_collisions = {i : [] for i in range(opp_half, len(feature_names))} # column id : [column ids that collide]
-
-for i_, feature in enumerate(feature_names[opp_half:]) : # only opp columns matter here since player deck is constant for this algorithm
-    i = i_ + opp_half
-    feature_split = feature.split(" ") # e.g. ["Opp", "Hero", "Mega", "Minion"]
-    split_len = len(feature_split) # number of words in the split (e.g. 4)
-
-    if "Evo" in feature_split : 
-        evos.append(i)
-        name_start = 2 #index of name start 
-    elif "Hero" in feature_split or " ".join(feature_split[1:]) in ["Skeleton King", "Archer Queen", "Goblinstein", "Golden Knight", "Little Prince", "Mighty Miner", "Monk", "Boss Bandit"]: 
-        hero.append(i)
-        name_start = 2
-    else : 
-        base.append(i)
-        name_start = 1
-
-    base_name = " ".join(feature_split[name_start:]) # E.g. "Mega Minion"
-
-    # Get collisions for this feature
-    for j_, feature_j in enumerate(feature_names[opp_half:]) : 
-        j = j_ + opp_half
-        feature_split_j = feature_j.split(" ")[1:] # Get rid of "Opp" 
-        if "Evo" in feature_split_j or "Hero" in feature_split_j :
-            feature_split_j.pop(0) # Get rid of "Evo" or "Hero"
-        if base_name == " ".join(feature_split_j) : # Only the base name remains
-            feature_collisions[i].append(j)
-
+# Get the cards (as column ids) that will be used by the search algorithm
+from functions.search_utilities import get_features_for_search
+base, evos, heros, card_collisions = get_features_for_search(available_cards, feature_names)
 
 #%%
 # Set player input deck
-input_deck = [
-"Plr Battle Ram",
-"Plr Wizard",
-"Plr Lumberjack",
-"Plr Barbarian Barrel",
-"Plr Dark Prince",
-"Plr Fireball",
-"Plr Zappies",
-"Plr Giant Skeleton"
-""
-]
-# Get column indices of player cards
-player_ind = [ind for ind, feature in enumerate(feature_names) if feature in input_deck]
+# input_deck = {
+# "Plr Evo Archers" : 1,
+# "Plr Hero Knight" : 1,
+# "Plr Evo Tesla" : 1,
+# "Plr Electro Spirit" : 1,
+# "Plr Skeletons" : 1,
+# "Plr The Log" : 1,
+# "Plr Fireball" : 1,
+# "Plr X-Bow" : 1,
+# }
+
+input_deck = []
+
+# Get column indices of player cards mapped to the levels
+player_ind = {i : input_deck[feature] for i, feature in enumerate(feature_names) if feature in input_deck}
 
 #%% 
 # Set parameters for algorithm
@@ -113,38 +87,40 @@ num_cycles = 3
 num_slots = 8 
 
 #%% 
-# Run algorithm
-
 # Construct tensor for model input
 input_size = len(feature_names)
-tens_in = torch.tensor(np.zeros((1, input_size)), dtype = torch.float32)
-tens_in[0, player_ind] = 1 # tensor needs to be 2D to match architecture (which is trained on batches of data)
+tens_in = torch.tensor(np.zeros((1, input_size)), dtype = torch.float32) # tensor needs to be 2D to match architecture (which is trained on batches of data)
+for card, level in player_ind.items() : 
+    tens_in[0, card] = level 
 
 cards_in_deck = np.zeros([num_slots], dtype = np.float32) # indices of cards currently in the deck after iteration and selection 
 cards_in_deck[:] = np.nan 
 
-name_collisions = [] # e.g. hero knight collides with evo and base knight
-
 slot_logit = np.zeros((num_slots, input_size), dtype = np.float32) # updated every slot/pass iteration
 slot_logit[:] = np.nan 
+
+#%%
+# Run algorithm
 
 for cycle in range(num_cycles) : 
     for slot in range(num_slots) : 
         if not np.isnan(cards_in_deck[slot]) : 
             tens_in[0, int(cards_in_deck[slot])] = 0 # current card removed in tensor during search
 
-        # Getting cards to search for the slot
-        #cards_to_search = [b for b in base if b not in cards_in_deck]
+        # Includes cards already in the deck as well as evo/hero variants of these cards
+        collisions = [collision for collisions in [card_collisions[int(card)] for card in cards_in_deck if not np.isnan(card)] for collision in collisions]
 
-        if slot == 0 or slot == 2 : # evo slot 
-            cards_to_search = [evo for evo in evos if evo not in cards_in_deck]
-        elif slot == 1 : # hero/champion slot
-            cards_to_search = [h for h in hero if h not in cards_in_deck]
-        else : # base card slot
-            cards_to_search = [b for b in base if b not in cards_in_deck]
+        # Base cards are always included in search: 
+        cards_to_search = {base_card for base_card in base if base_card not in collisions}
+
+        if slot == 0 or slot == 2 : # for evo slot, add evos to search 
+            cards_to_search |= {evo_card for evo_card in evos if evo_card not in collisions}
+        elif slot == 1 : # for hero/champion slot, add heros/champions to search
+            cards_to_search |= {hero_card for hero_card in heros if hero_card not in collisions}
 
         for card in cards_to_search :
-            tens_in[0, card] = 1 # set slot to card 
+            #tens_in[0, card] = col_to_level[card] # set slot to card level
+            tens_in[0, card] = 1
             slot_logit[slot, card] = model(tens_in) # evaluate
             tens_in[0, card] = 0 # empty slot when done
             
@@ -158,18 +134,30 @@ for cycle in range(num_cycles) :
 #%% 
 # Look at deck output
 features_np = np.array(feature_names)
-print(features_np[cards_in_deck.astype(np.int16)])
+print("Player deck: ", input_deck)
+print("Opponent deck: ", {feature_names[card] : col_to_level[card] for card in cards_in_deck.astype(np.int16)})
 
 # %%
 # Look at estimated win probability
-test_tens = torch.tensor(np.zeros((1, input_size)), dtype = torch.float32)
-test_tens[0, player_ind] = 1
-test_tens[0, cards_in_deck.astype(np.int16)] = 1
-print(F.sigmoid(model(test_tens)))
+eval_tens = torch.tensor(np.zeros((1, input_size)), dtype = torch.float32) # tensor needs to be 2D to match architecture (which is trained on batches of data)
+for card, level in player_ind.items() : 
+    eval_tens[0, card] = level 
+for card in cards_in_deck : 
+    eval_tens[0, int(card)] = col_to_level[int(card)]
+
+print(F.sigmoid(model(eval_tens)))
 
 # %%
 print(cards_in_deck)
+
 # %%
-print([collision for collisions in [feature_name_collisions[card] for card in cards_in_deck] for collision in collisions])
+test_deck = [0, 1, 2]
+test_dict = {0: [1, 2, 3], 1: [4, 5], 2: [6]}
+
+print([card for cards in [test_dict[i] for i in test_deck] for card in cards])
+# %%
+test_dict = {"A" : 0, "B" : 1}
+test_dict |= {"C" : 2, "D" : 3}
+print(test_dict)
 
 # %%
