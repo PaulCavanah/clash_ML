@@ -157,13 +157,90 @@ class LogitSymmetric_256_128_64_1(nn.Module) :
 
         return logit.squeeze(-1)
 
-class LogitCardEmbedding16_1600_400_100_25_1(nn.Module) : 
+
+class LogitSymmetric_512_256_128_64_1(nn.Module) :
     """
-    Cards get fed in as id numbers, which get turned into embeddings of d = 16, which are 
-    concatenated and fed into the MLP.  
-    Input is sparse with id of each present card at the card position, 0 otherwise. 
-    I.e. for 340 features (170 player, 170 opponent), this could look like 
-    [0, 0, 0, 4, 0, 0, 7, ...]
-    This would result in matrix of shape 340 x 16, which is flattened and put into MLP
+    Bigger version of the above
+    (input -> 512 -> 256 -> 128 -> 64 -> 1)
+    logit = u(A, B) - u(B, A)
     """
-    pass
+
+    def __init__(self, input_dim : int, dropout : float = 0.2) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # MLP
+        self.head = nn.Sequential(
+            nn.Linear(input_dim, 512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(512, 256),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(256, 128),
+            nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(128, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
+        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(AB) - self.head(BA)
+
+        return logit.squeeze(-1)
+    
+    
+class LogitSymmetric_128_64_1(nn.Module) :
+    """
+    Smaller version of the above
+    (input -> 128 -> 64 -> 1)
+    logit = u(A, B) - u(B, A)
+    """
+
+    def __init__(self, input_dim : int, dropout : float = 0.2) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # MLP
+        self.head = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            #nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(128, 64),
+            #nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
+        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(AB) - self.head(BA)
+
+        return logit.squeeze(-1)

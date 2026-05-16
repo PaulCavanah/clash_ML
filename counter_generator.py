@@ -2,27 +2,6 @@
 # Given an input deck, find a deck that counters it well
 # Initial approach: brute force search iterating over deck slots and cards, with multiple passes
 
-# What to do now: 
-# In summary - CONDENSE and modularize this process for future 
-# Components right now: 
-# 1. Imports
-# 2. Get feature names from model
-# 3. Get base, evos, hero/champion column ids from feature names
-# 4. Get collisions of column ids 
-# 5. Load model
-# 6. Set player deck / column indices of player cards
-# 7. Run algorithm
-# 8. Evaluate result
-
-# All of this is too jumbled 
-
-# Ultimately, I should have a script or process where I just put in a deck with
-# levels, and I choose from some options:  
-# 1. choose a player tag and these are the cards to choose from
-# 2. choose any cards
-# 3. choose only base cards
-# 4. etc... 
-
 #%% 
 # Imports and finding root dir
 import torch
@@ -42,7 +21,7 @@ from modeling.architectures import *
 from functions.load_model import load_nn_model
 
 architecture = LogitSymmetric_256_128_64_1
-model_name = "NNsym_20M_ladder5k10k_pretrain"
+model_name = "NNsym_35M_12kranked"
 model, feature_names = load_nn_model(architecture, model_name)
 
 # Get available cards from a player tag
@@ -50,8 +29,8 @@ from functions.get_cards import get_player_cards
 from functions.get_API_token import get_API_token
 
 TOKEN = get_API_token()
-#tag = "%2389QUL8YCQ" # Some random ladder player
-tag = "%23G9YV9GR8R" # Mohamed Light
+tag = "%2389QUL8YCQ" # Some random ladder player
+#tag = "%23G9YV9GR8R" # Mohamed Light
 col_to_level, name_to_level = get_player_cards(tag, TOKEN, feature_names)
 opp_half = len(feature_names) // 2 
 available_cards = {col : level for col, level in col_to_level.items() if col >= opp_half} # as column ids 
@@ -75,7 +54,7 @@ base, evos, heros, card_collisions = get_features_for_search(available_cards, fe
 # "Plr X-Bow" : 1,
 # }
 
-input_deck = []
+input_deck = [""]
 
 # Get column indices of player cards mapped to the levels
 player_ind = {i : input_deck[feature] for i, feature in enumerate(feature_names) if feature in input_deck}

@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Commonality
+commonality/frequencies
+
 # Environments
 venv/
 .env

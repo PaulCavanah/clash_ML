@@ -2,18 +2,18 @@
 
 def get_features_for_search(available_cards, feature_names) : 
     # Input : 
-    # available_cards - a list of the available cards (as column ids corresponding to feature_names, e.g. 172)
+    # available_cards - a list of the available cards (as column ids corresponding to feature_names, e.g. 172) or dict of available cards mapped to levels
     # feature_names - a list of all the card features (as str, e.g. "Opp Knight") 
     # Returns : 
-    # base - a dict of available base card features for search (as ids) : level
-    # evos - a list of available evo card features for search (as ids) : level
-    # heros - a list of available hero/champion card features for search (as ids) : level
+    # base - a list of available base card features for search 
+    # evos - a list of available evo card features for search 
+    # heros - a list of available hero/champion card features for search 
     # feature_collisions - a dictionary of card id : [card ids that collide with card id]
 
     # column ids of available cards 
-    base = dict()
-    evos = dict()
-    hero = dict() # includes heros and champions
+    base = []
+    evos = []
+    hero = [] # includes heros and champions
     feature_collisions = {i : [] for i in available_cards} # column id : [column ids that collide]
     # Note that feature collisions include the features themselves - this is a feature not a bug which usefully prevents duplicate of a card with itself during search (as well as with the evo/hero versions of itself)
 
@@ -23,13 +23,13 @@ def get_features_for_search(available_cards, feature_names) :
         feature_split = feature.split(" ") # e.g. ["Opp", "Hero", "Mega", "Minion"]
 
         if "Evo" in feature_split : 
-            evos[i] = available_cards[i]
+            evos.append(i)
             name_start = 2 #index of name start 
         elif "Hero" in feature_split or " ".join(feature_split[1:]) in ["Skeleton King", "Archer Queen", "Goblinstein", "Golden Knight", "Little Prince", "Mighty Miner", "Monk", "Boss Bandit"]: 
-            hero[i] = available_cards[i]
+            hero.append(i)
             name_start = 2
         else : 
-            base[i] = available_cards[i]
+            base.append(i)
             name_start = 1
 
         base_name = " ".join(feature_split[name_start:]) # E.g. "Mega Minion"

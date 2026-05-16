@@ -1,6 +1,11 @@
 import requests
 
-def get_all_cards(TOKEN) : 
+def get_all_cards(TOKEN, base_only = False) : 
+    # Queries the API for all cards that exist in the game
+
+    # Inputs: 
+    # TOKEN - a str API token
+    # base_only - a bool, if True, only returns base cards  
 
     # Returns: 
     # card_types - a dictionary of (card_id, evo_type) : card_name
@@ -27,13 +32,14 @@ def get_all_cards(TOKEN) :
         
         card_types[(id, 0)] = f"{name}"  #Add base no matter what
 
-        if evo_type == 1 : # Evo available (but no hero)
-            card_types[(id, 1)] = f"Evo {name}"
-        elif evo_type == 2 : # Hero available (but no evo)
-            card_types[(id, 2)] = f"Hero {name}"
-        elif evo_type == 3 : # Both evo and hero available
-            card_types[(id, 1)] = f"Evo {name}" 
-            card_types[(id, 2)] = f"Hero {name}"
+        if not base_only : 
+            if evo_type == 1 : # Evo available (but no hero)
+                card_types[(id, 1)] = f"Evo {name}"
+            elif evo_type == 2 : # Hero available (but no evo)
+                card_types[(id, 2)] = f"Hero {name}"
+            elif evo_type == 3 : # Both evo and hero available
+                card_types[(id, 1)] = f"Evo {name}" 
+                card_types[(id, 2)] = f"Hero {name}"
 
     # Create one-hot column names (for player and opponent) from the card types
     OH_columns = ["Plr " + card_name for card_name in card_types.values()] + ["Opp " + card_name for card_name in card_types.values()]
@@ -42,6 +48,7 @@ def get_all_cards(TOKEN) :
 
 
 def get_player_cards(tag, TOKEN, feature_names) : 
+    # Queries the API for which cards that a specific player has
     
     # Returns:
     # col_to_level - a dictionary of card column : level
