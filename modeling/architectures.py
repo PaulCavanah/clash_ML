@@ -156,60 +156,11 @@ class LogitSymmetric_256_128_64_1(nn.Module) :
         logit = self.head(AB) - self.head(BA)
 
         return logit.squeeze(-1)
-
-
-class LogitSymmetric_512_256_128_64_1(nn.Module) :
-    """
-    Bigger version of the above
-    (input -> 512 -> 256 -> 128 -> 64 -> 1)
-    logit = u(A, B) - u(B, A)
-    """
-
-    def __init__(self, input_dim : int, dropout : float = 0.2) :  
-        super().__init__()
-
-        self.half = input_dim//2
-
-        # MLP
-        self.head = nn.Sequential(
-            nn.Linear(input_dim, 512),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-
-            nn.Linear(512, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-
-            nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-
-            nn.Linear(64, 1)
-        )
-
-    def forward(self, x) :
-        A = x[:, :self.half] # Player cards as one-hot
-        B = x[:, self.half:] # Opponent cards as one-hot
-
-        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
-        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
-
-        logit = self.head(AB) - self.head(BA)
-
-        return logit.squeeze(-1)
     
     
 class LogitSymmetric_128_64_1(nn.Module) :
     """
-    Smaller version of the above
+    'Small'
     (input -> 128 -> 64 -> 1)
     logit = u(A, B) - u(B, A)
     """
@@ -232,6 +183,168 @@ class LogitSymmetric_128_64_1(nn.Module) :
             nn.Dropout(dropout),
 
             nn.Linear(64, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
+        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(AB) - self.head(BA)
+
+        return logit.squeeze(-1)
+
+
+class LogitSymmetric_512_256_128_64_1(nn.Module) :
+    """
+    'Big'
+    (input -> 512 -> 256 -> 128 -> 64 -> 1)
+    logit = u(A, B) - u(B, A)
+    """
+
+    def __init__(self, input_dim : int, dropout : float = 0.2) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # MLP
+        self.head = nn.Sequential(
+            nn.Linear(input_dim, 512),
+            #nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(512, 256),
+            #nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(256, 128),
+            #nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(128, 64),
+            #nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
+        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(AB) - self.head(BA)
+
+        return logit.squeeze(-1)
+    
+
+class LogitSymmetric_128_64_1(nn.Module) :
+    """
+    'Small'
+    (input -> 128 -> 64 -> 1)
+    logit = u(A, B) - u(B, A)
+    """
+
+    def __init__(self, input_dim : int, dropout : float = 0.2) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # MLP
+        self.head = nn.Sequential(
+            nn.Linear(input_dim, 128),
+            #nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(128, 64),
+            #nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(64, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
+        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(AB) - self.head(BA)
+
+        return logit.squeeze(-1)
+    
+
+class LogitSymmetric_32_8_1(nn.Module) :
+    """
+    'Very small'
+    (input -> 32 -> 8 -> 1)
+    logit = u(A, B) - u(B, A)
+    """
+
+    def __init__(self, input_dim : int, dropout : float = 0.2) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # MLP
+        self.head = nn.Sequential(
+            nn.Linear(input_dim, 32),
+            #nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(32, 8),
+            #nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(8, 1)
+        )
+
+    def forward(self, x) :
+        A = x[:, :self.half] # Player cards as one-hot
+        B = x[:, self.half:] # Opponent cards as one-hot
+
+        AB = torch.cat([A, B], dim = 1) # encoder outputs concatenated with player first
+        BA = torch.cat([B, A], dim = 1) # encoder outputs concatenated with opponent first
+
+        logit = self.head(AB) - self.head(BA)
+
+        return logit.squeeze(-1)
+    
+
+
+class LogitSymmetric_8_1(nn.Module) :
+    """
+    'Super small'
+    (input -> 8 -> 1)
+    logit = u(A, B) - u(B, A)
+    """
+
+    def __init__(self, input_dim : int, dropout : float = 0.2) :  
+        super().__init__()
+
+        self.half = input_dim//2
+
+        # MLP
+        self.head = nn.Sequential(
+            nn.Linear(input_dim, 8),
+            #nn.BatchNorm1d(128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+
+            nn.Linear(8, 1),            
         )
 
     def forward(self, x) :
