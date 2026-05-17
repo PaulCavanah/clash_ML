@@ -1,9 +1,8 @@
 # Calculate combination code frequencies for 4-card combinations from a parent population of decks
 
 #%%
-import os
-
 # Set root dir as cwd
+import os
 enum = [(i, dir) for i, dir in enumerate(os.getcwd().split("\\"))]
 root_dir = "\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if dir == "clash_ML"][0]])
 os.chdir(root_dir)
@@ -180,7 +179,7 @@ data = {"criterion" : criterion, "encoded_frequencies" : encoded_frequencies}
 
 filename = frequency_dir / f"r{r}_{parent_name}.pkl"
 with open(filename, "wb") as f : 
-    pickle.dump(encoded_frequencies, f)
+    pickle.dump(data, f)
 
 
 # %%

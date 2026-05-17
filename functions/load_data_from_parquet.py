@@ -8,13 +8,15 @@ import numpy as np
 from functions.get_cards import get_all_cards
 from functions.get_API_token import get_API_token
 
-def load_onehot(game_lim = 1000000, levels = False, base_only = False, filters = None, include_tags = False) : 
+def load_onehot(game_lim = 1_000_000, levels = False, base_only = False, filters = None, include_tags = False, omit_features = [], previous_features = None) : 
     # kwargs: 
     #   game_lim = int or None (maximum number of games to load, default = 1,000,000)
     #   levels = bool (True = levels in place of 1/0 one-hot labels, default = False)
     #   base_only = bool (True = only base cards, no evo/hero, default = False)
     #   filters = list (parquet filter format to apply to each loaded file, default = None)
     #   include_tags = bool (True = returns an extra argument after feature_names, with player/opponent tag info for each game)
+    #   omit_features = a list of features to omit from the data, will be removed from X
+    #   previous_features = if provided, will force the output X into the columnar order of this list
     # Returns: 
     #   X = ndarray with shape (num_games, num_features) (whether card was present or not, as 1/0 or level/0)
     #   y = ndarray with shape (num_games, 1) (win/loss)
@@ -114,6 +116,22 @@ def load_onehot(game_lim = 1000000, levels = False, base_only = False, filters =
     # Feature names: One-hot column names
     feature_names = OH_columns
 
+    # If applicable, omit features by not including them in data matrix and feature_names
+    if len(omit_features) > 0 :
+        found = [f for f in omit_features if f in feature_names]; not_found = [f for f in omit_features if f not in feature_names]
+        print(f"Omitting {found} from data", f"Not omitted: {not_found}")
+        non_omitted = [i for i, feature in enumerate(feature_names) if feature not in omit_features]
+        feature_names = [feature for feature in feature_names if feature not in omit_features]
+        X = X[:, non_omitted]
+
+    # If applicable, use a previous list of features to re-order/re-select the columns 
+    if previous_features : 
+        new_order = []
+        for pf in previous_features : 
+            new_order.append(feature_names.index(pf))
+        X = X[:, new_order]
+        feature_names = previous_features
+        
     # Tags: player_tag, opponent_tag
     tags = np.array(pqt_df.loc[:, ["player_tag", "opponent_tag"]])
 
@@ -246,8 +264,6 @@ def load_level_onehot(num_batches = "all", filters = None) :
     print("Loaded Data with shape:", f"X:{X.shape}, y:{y.shape}")
 
     return X, y, feature_names
-    
-    
 
 def load_plain_onehot(num_batches = "all", player_mirror = False, filters = None) : 
     # Load in X and Y data from the parquet files: 

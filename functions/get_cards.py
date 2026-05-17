@@ -6,6 +6,7 @@ def get_all_cards(TOKEN, base_only = False) :
     # Inputs: 
     # TOKEN - a str API token
     # base_only - a bool, if True, only returns base cards  
+    # omit_features - a list of features to omit, default = [] (e.g. "Hero Dark Prince")
 
     # Returns: 
     # card_types - a dictionary of (card_id, evo_type) : card_name
@@ -20,7 +21,7 @@ def get_all_cards(TOKEN, base_only = False) :
     # Create a dict, where the key is a tuple (id, evo level) and
     # the value is the column name (e.g. "Evo Knight") 
 
-    card_types = dict()
+    card_types = dict() # (id, evohero) : card_name
 
     for card in card_data["items"] : 
         name = card["name"]
@@ -40,12 +41,11 @@ def get_all_cards(TOKEN, base_only = False) :
             elif evo_type == 3 : # Both evo and hero available
                 card_types[(id, 1)] = f"Evo {name}" 
                 card_types[(id, 2)] = f"Hero {name}"
-
+        
     # Create one-hot column names (for player and opponent) from the card types
     OH_columns = ["Plr " + card_name for card_name in card_types.values()] + ["Opp " + card_name for card_name in card_types.values()]
 
     return card_types, OH_columns
-
 
 def get_player_cards(tag, TOKEN, feature_names) : 
     # Queries the API for which cards that a specific player has
