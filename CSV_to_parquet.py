@@ -57,7 +57,7 @@ root_dir = "\\".join([dir for i, dir in enum if i <= [i for i, dir in enum if di
 os.chdir(root_dir)
 
 from functions.get_API_token import get_API_token
-from functions.get_cards import get_card_onehot_columns
+from functions.get_cards import get_all_cards
 
 #%% 
 
@@ -77,7 +77,7 @@ csv_batch_size = 100 # number of csv files (batch size) to convert to a single p
 
 #%% 
 # Get up-to-date card types and one-hot column names using logic on data from API   
-card_types, OH_columns = get_card_onehot_columns(TOKEN)  
+card_types, OH_columns = get_all_cards(TOKEN)  
 
 # Make it easy to get column index from the name of the column (for the vectorization below)
 OH_name_to_idx = {column : i for i, column in enumerate(OH_columns)}
