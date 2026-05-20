@@ -1,46 +1,69 @@
+import numpy as np
 
-
-def get_features_for_search(available_cards, feature_names) : 
+def mappings_from_available(available_cards, feature_names) : 
+    # A function that takes in available_cards and outputs information about the mappings between these cards
+    #
     # Input : 
-    # available_cards - a list of the available cards (as column ids corresponding to feature_names, e.g. 172) or dict of available cards mapped to levels
-    # feature_names - a list of all the card features (as str, e.g. "Opp Knight") 
+    # available_cards - a list of the available cards (as column ids corresponding to feature_names, e.g. 167) or dict of available cards mapped to levels
+    # feature_names - a list of all the card features (as str, e.g. "Plr Knight") 
     # Returns : 
-    # base - a list of available base card features for search 
-    # evos - a list of available evo card features for search 
-    # heros - a list of available hero/champion card features for search 
-    # feature_collisions - a dictionary of card id : [card ids that collide with card id]
+    # dict with keys: 
+    #   base - a list of available base card features as indices
+    #   evos - a list of available evo card features as indices
+    #   heroes - a list of available hero/champion card features as indices
+    #   feature_collisions - a dictionary of card id : [card ids that collide with card id]
+    #   base_to_evos - an ndarray of size (num_features, ) where the index is the base card and the value is the corresponding evo, otherwise 1000
+    #   base_to_heroes - an ndarray of size (num_features, ) where the index is the base card and the value is the corresponding hero, otherwise 1000 
+    #   all_to_base - an ndarray of size (num_features, ) where the index is the base/evo/hero card and the value is the corresponding base card, otherwise 1000
 
-    # column ids of available cards 
-    base = []
-    evos = []
-    hero = [] # includes heros and champions
-    feature_collisions = {i : [] for i in available_cards} # column id : [column ids that collide]
-    # Note that feature collisions include the features themselves - this is a feature not a bug which usefully prevents duplicate of a card with itself during search (as well as with the evo/hero versions of itself)
+    available_cards = [i for i in available_cards if "Plr" in feature_names[i]] # only Plr columns matter here
+    C = len(feature_names)//2 # number of possible features on one side
 
-    for i in available_cards : # only opp columns matter here since player deck is constant for this algorithm
+    nan_substitute = 1000 # needed to preserve the int datatype for the below, while still having an exceptional value (i.e. if card / card relation doesn't exist in an array)
+
+    output = {
+        "base" : [],
+        "evos" : [],
+        "heroes" : [], # including heroes and champions
+        "feature_collisions" : {i : [] for i in available_cards}, # Note that feature collisions include the features themselves - this is a feature not a bug which usefully prevents duplicate of a card with itself during search (as well as with the evo/hero versions of itself)
+        "base_to_evos" : nan_substitute*np.ones((C, ),  dtype = np.uint16), # [base] = evo
+        "base_to_heroes" : nan_substitute*np.ones((C, ), dtype = np.uint16), # [base/hero] = hero
+        "all_to_base" : nan_substitute*np.ones((C, ), dtype = np.uint16) # [base/evo/hero] = base
+    }
+
+    for i in available_cards : 
         feature = feature_names[i]
 
-        feature_split = feature.split(" ") # e.g. ["Opp", "Hero", "Mega", "Minion"]
+        feature_split = feature.split(" ") # e.g. ["Plr", "Hero", "Mega", "Minion"]
 
         if "Evo" in feature_split : 
-            evos.append(i)
+            output["evos"].append(i)
             name_start = 2 #index of name start 
-        elif "Hero" in feature_split or " ".join(feature_split[1:]) in ["Skeleton King", "Archer Queen", "Goblinstein", "Golden Knight", "Little Prince", "Mighty Miner", "Monk", "Boss Bandit"]: 
-            hero.append(i)
+        elif "Hero" in feature_split : 
+            output["heroes"].append(i)
             name_start = 2
+        elif " ".join(feature_split[1:]) in ["Skeleton King", "Archer Queen", "Goblinstein", "Golden Knight", "Little Prince", "Mighty Miner", "Monk", "Boss Bandit"]: 
+            output["heroes"].append(i)
+            name_start = 1 
         else : 
-            base.append(i)
+            output["base"].append(i)
             name_start = 1
 
         base_name = " ".join(feature_split[name_start:]) # E.g. "Mega Minion"
 
-        # Get collisions for this feature
+        # Get collisions and cross-feature mappings for this feature
         for j in available_cards : 
             feature_j = feature_names[j]
-            feature_split_j = feature_j.split(" ")[1:] # Get rid of "Opp" 
-            if "Evo" in feature_split_j or "Hero" in feature_split_j :
-                feature_split_j.pop(0) # Get rid of "Evo" or "Hero"
-            if base_name == " ".join(feature_split_j) : # Only the base name remains
-                feature_collisions[i].append(j)
-
-    return base, evos, hero, feature_collisions
+            feature_split_j = feature_j.split(" ")[1:] # Gets rid of "Plr"         
+            if ("Evo" in feature_split_j or "Hero" in feature_split_j) and " ".join(feature_split_j[1:]) == base_name and name_start == 1: # j is a evo/hero equivalent of i, which is a base card 
+                output["feature_collisions"][i].append(j)
+                output["all_to_base"][j] = i
+                if "Evo" in feature_split_j : # j is an evo equivalent of i 
+                    output["base_to_evos"][i] = j 
+                elif "Hero" in feature_split_j : # j is the hero equivalent of i
+                    output["base_to_heroes"][i] = j
+            elif " ".join(feature_split_j) == base_name and name_start == 1: # j is the base card equivalent of i, which is a base card
+                output["feature_collisions"][i].append(j)
+                output["all_to_base"][i] = j
+        
+    return output

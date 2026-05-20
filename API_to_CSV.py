@@ -194,7 +194,7 @@ while True :
             # Move forward one in the player queue
             last_index += 1 
             if last_index > len(player_list) : 
-                player_list = 0 
+                last_index = 0 
 
         # Save the rows as a csv with a unique timestamp: 
         df = pd.DataFrame(row_list)
