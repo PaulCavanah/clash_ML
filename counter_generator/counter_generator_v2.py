@@ -64,14 +64,14 @@ import numpy as np
 
 # Deck to be countered: 
 opponent_deck = [
-    "Plr Evo Battle Ram",
-    "Plr Hero Wizard",
-    "Plr Evo Lumberjack",
-    "Plr Barbarian Barrel",
-    "Plr Dark Prince",
-    "Plr Fireball",
+    "Plr Evo Inferno Dragon",
+    "Plr Golden Knight",
+    "Plr Evo Executioner",
+    "Plr Tornado",
+    "Plr Freeze",
     "Plr Zappies",
-    "Plr Giant Skeleton",
+    "Plr Bowler",
+    "Plr Graveyard"
 ]
 
 eval_matrix = np.zeros((N, 2*C)) # to be fed into the model
@@ -98,9 +98,14 @@ eval_probs = torch.sigmoid(model(eval_tensor)).detach().numpy()
 sorted_i = np.argsort(eval_probs)[::-1]
 sorted_evals = np.sort(eval_probs)[::-1]
 
+# Worst decks: 
+#sorted_i = np.argsort(eval_probs)
+#sorted_evals = np.sort(eval_probs)
+
 # View top k
 k = 10
 top_k_decks = swap_decks_format(eval_matrix[sorted_i[:k], :C], feature_names)
 for ki in range(k) : 
     print(sorted_evals[ki], [feature_names[i] for i in top_k_decks[ki, :]])
 
+# %%
