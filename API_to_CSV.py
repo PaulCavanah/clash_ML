@@ -69,7 +69,7 @@ else :
 print("Collector: ", collector)
 
 # Load the list for this collector
-list_name = "20260422_midladder_5000_10000"
+list_name = "20260427_highskill"
 list_path = root_dir / f"player_list/lists/collector_{collector}_{list_name}.pkl"
 if os.path.isfile(list_path) : 
     with open(list_path, "rb") as file : 
@@ -194,7 +194,7 @@ while True :
             # Move forward one in the player queue
             last_index += 1 
             if last_index > len(player_list) : 
-                player_list = 0 
+                last_index = 0
 
         # Save the rows as a csv with a unique timestamp: 
         df = pd.DataFrame(row_list)

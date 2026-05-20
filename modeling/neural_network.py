@@ -22,7 +22,7 @@ root_dir = Path("\\".join([dir for i, dir in enum if i <= [i for i, dir in enum 
 os.chdir(root_dir)
 sys.path.append(os.getcwd())
 
-from functions.load_data_from_parquet import load_level_onehot
+from functions.load_data_from_parquet import load_onehot
 from modeling.architectures import LogitSymmetric_256_128_64_1
 architecture = LogitSymmetric_256_128_64_1
 from functions.model_training import train_model, evaluate_model, TrainConfig
@@ -33,26 +33,28 @@ else :
     DEVICE = torch.device("cpu")
 
 print("Using device: ", DEVICE)
-    
+
 # ================================================================
 #%% 
 # Load data 
 
 random_state = 42
 
-num_batches_to_load = 50
+# ladder_minimum = 5000
+# ladder_maximum = 10000
+# filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">", ladder_minimum), ("player_trophies", "<", ladder_maximum)]]
 
-ladder_minimum = 5000
-ladder_maximum = 10000
-filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">", ladder_minimum), ("player_trophies", "<", ladder_maximum)]]
+ladder_minimum = 12000
+ranked_minimum = 0
+filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", ranked_minimum)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", ranked_minimum)]]
 
-X, y, feature_names = load_level_onehot(num_batches = num_batches_to_load, filters = filters)
+X, y, feature_names = load_onehot(game_lim = None, filters = filters)
 
 #%%
-# 90 / 5 / 5 split
+# 98 / 1 / 1 split
 
 X_train, X_temp, y_train, y_temp = train_test_split(
-    X, y, test_size=0.10, random_state=random_state, stratify=y
+    X, y, test_size=0.02, random_state=random_state, stratify=y
 )
 
 X_val, X_test, y_val, y_test = train_test_split(
@@ -68,25 +70,14 @@ print(f"train: {y_train.shape}, val: {y_val.shape}, test: {y_test.shape}")
 #%%
 # Tensor conversion
 
-if type(X_train) == np.ndarray : # already converted to numpy
-    X_train_t = torch.tensor(X_train, dtype=torch.float32)
-    y_train_t = torch.tensor(y_train, dtype=torch.float32)
+X_train_t = torch.tensor(X_train, dtype=torch.float32)
+y_train_t = torch.tensor(y_train, dtype=torch.float32)
 
-    X_val_t = torch.tensor(X_val, dtype=torch.float32)
-    y_val_t = torch.tensor(y_val, dtype=torch.float32)
+X_val_t = torch.tensor(X_val, dtype=torch.float32)
+y_val_t = torch.tensor(y_val, dtype=torch.float32)
 
-    X_test_t = torch.tensor(X_test, dtype=torch.float32)
-    y_test_t = torch.tensor(y_test, dtype=torch.float32)
-
-else : # A pandas type
-    X_train_t = torch.tensor(X_train.to_numpy(), dtype=torch.float32)
-    y_train_t = torch.tensor(y_train.to_numpy(), dtype=torch.float32)
-
-    X_val_t = torch.tensor(X_val.to_numpy(), dtype=torch.float32)
-    y_val_t = torch.tensor(y_val.to_numpy(), dtype=torch.float32)
-
-    X_test_t = torch.tensor(X_test.to_numpy(), dtype=torch.float32)
-    y_test_t = torch.tensor(y_test.to_numpy(), dtype=torch.float32)
+X_test_t = torch.tensor(X_test, dtype=torch.float32)
+y_test_t = torch.tensor(y_test, dtype=torch.float32)
 
 train_ds = TensorDataset(X_train_t, y_train_t)
 val_ds = TensorDataset(X_val_t, y_val_t)
@@ -99,7 +90,7 @@ gc.collect()
 # ================================================================
 #%% 
 
-network_name = "NNsym_2M_ladder5k10k_levels"
+network_name = "NNsym_41M_12kranked"
 
 # For saving neural network state
 models_dir = root_dir / "modeling/model_states/"
@@ -142,3 +133,7 @@ print("Test: ", test_metrics)
 
 # %%
 torch.save(model.state_dict, save_state_path) 
+
+# %%
+print(save_state_path)
+# %%
