@@ -22,7 +22,10 @@ model, feature_names = load_nn_model(architecture = architecture, name = model_n
 #%%
 from functions.get_cards import get_player_cards
 # Specify player tag and get available cards 
-player_tag = "%23V08PUV8GJ" # Me 
+
+#player_tag = "%23V08PUV8GJ" # Me 
+
+player_tag = "%23VC20G22LU" # Nxxx 
 
 player_data = get_player_cards(player_tag, feature_names)
 available_cards = player_data["col_to_level"]
@@ -40,7 +43,7 @@ ranked_minimum = 0
 filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", ranked_minimum)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", ranked_minimum)]]
 
 # Load deck data - comes in (N, C) format
-eval_decks, _, _ = load_player_unique_decks(game_lim = 500_000, filters = filters)
+eval_decks, _, _ = load_player_unique_decks(game_lim = 1_000_000, filters = filters)
 
 # Convert to (N, 8) format
 eval_decks = swap_decks_format(eval_decks, feature_names)
@@ -64,14 +67,14 @@ import numpy as np
 
 # Deck to be countered: 
 opponent_deck = [
-    "Plr Evo Inferno Dragon",
+    "Plr Evo Witch",
     "Plr Golden Knight",
-    "Plr Evo Executioner",
-    "Plr Tornado",
-    "Plr Freeze",
-    "Plr Zappies",
-    "Plr Bowler",
-    "Plr Graveyard"
+    "Plr Evo Royal Ghost",
+    "Plr Fire Spirit",
+    "Plr Goblin Hut",
+    "Plr Goblin Barrel",
+    "Plr Guards",
+    "Plr Vines"
 ]
 
 eval_matrix = np.zeros((N, 2*C)) # to be fed into the model

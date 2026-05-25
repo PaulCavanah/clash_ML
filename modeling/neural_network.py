@@ -48,13 +48,13 @@ ladder_minimum = 12000
 ranked_minimum = 0
 filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", ranked_minimum)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", ranked_minimum)]]
 
-X, y, feature_names = load_onehot(game_lim = None, filters = filters)
+X, y, feature_names = load_onehot(game_lim = 50_000, filters = filters)
 
 #%%
-# 98 / 1 / 1 split
+# 70 / 15 / 15 split
 
 X_train, X_temp, y_train, y_temp = train_test_split(
-    X, y, test_size=0.02, random_state=random_state, stratify=y
+    X, y, test_size=0.30, random_state=random_state, stratify=y
 )
 
 X_val, X_test, y_val, y_test = train_test_split(
@@ -90,7 +90,7 @@ gc.collect()
 # ================================================================
 #%% 
 
-network_name = "NNsym_41M_12kranked"
+network_name = "NN_test"
 
 # For saving neural network state
 models_dir = root_dir / "modeling/model_states/"
