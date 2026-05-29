@@ -152,6 +152,39 @@ def stream_onehot(buffer_size = 100_000, levels = False, base_only = False, filt
         buffer_row_count += remaining_file_size 
         df_buffer_list.append(df)
 
+    # Yield what's left after loading all the files:
+    if len(df_buffer_list) > 0 : 
+        df_buffer = pd.concat(df_buffer_list, ignore_index = True) # Includes buffer data from this file and the previous file(s)
+        
+        # X: card data
+        X = vectorizer.to_onehot(df_buffer)
+
+        # y: player wins
+        y = np.array(df_buffer["player_crowns"] > df_buffer["opponent_crowns"])
+
+        yield X, y, feature_names
+
+def load_random_games(load_size, filters = None, buffer_size = 500_000, levels = False, base_only = False) : 
+    # Get a sample of games from the entire dataset by streaming 
+    num_games = pd.read_parquet(path = f"{os.getcwd()}/data/parquet", engine = "pyarrow", columns = ["player_crowns"], filters = filters)["player_crowns"].shape[0] # load a lightweight column to get the game count
+    data_generator = stream_onehot(buffer_size = buffer_size, filters = filters, levels = levels, base_only = base_only)
+    _, _, feature_names = next(data_generator)
+    num_ss = num_games // buffer_size - 1 # number of buffers to subsample
+    buffer_ss_size = int(round(load_size/num_ss)) # subsample size to reach the goal load_size
+    load_size_actual = buffer_ss_size*num_ss # actual num games (might be very slightly different from num_games if num_games is not divisible by num_ss)
+    ss = np.arange(0, num_ss) * buffer_ss_size # index edges of subsamplings across buffers
+    X_ss = np.zeros((load_size_actual, len(feature_names)), dtype = np.uint8)
+    y_ss = np.zeros(load_size_actual, dtype = np.uint8)
+    for i in range(num_ss) : # buffer iterator
+        (X_buffer, y_buffer, feature_names) = next(data_generator, [])        
+        # Randomly subsample games 
+        rng = np.random.default_rng()
+        ss_games = rng.choice(X_buffer.shape[0], size = buffer_ss_size, replace = False) 
+        X_ss[ss[i]:(ss[i]+buffer_ss_size), :] = X_buffer[ss_games, :]
+        y_ss[ss[i]:(ss[i]+buffer_ss_size)] = y_buffer[ss_games]
+
+    return X_ss, y_ss, feature_names
+
 def load_player_unique_decks(game_lim = 1000000, levels = False, base_only = False, filters = None) : 
     # Extension of load_onehot that transforms X to only have decks that are unique to each player and to not have an opponent side
     # 

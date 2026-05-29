@@ -2,15 +2,8 @@
 
 #%%
 # Imports
-import copy
-from dataclasses import dataclass
-
-import numpy as np
 import torch
-import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 
 from pathlib import Path
 import os
@@ -23,10 +16,10 @@ root_dir = Path("\\".join([dir for i, dir in enum if i <= [i for i, dir in enum 
 os.chdir(root_dir)
 sys.path.append(os.getcwd())
 
-from functions.load_data_from_parquet import stream_onehot
+from functions.load_data_from_parquet import load_random_games
 from modeling.architectures import LogitSymmetric_256_128_64_1
 architecture = LogitSymmetric_256_128_64_1
-from functions.model_training import train_model, evaluate_model, TrainConfig
+from functions.model_training import TrainConfig, DataStreamConfig, stream_train_model 
 
 if torch.cuda.is_available() :
     DEVICE = torch.device("cuda")
@@ -36,10 +29,57 @@ else :
 print("Using device: ", DEVICE)
 
 #%%
-# Create data generator, where next(generator) gets the next buffer of data
+# Set filters for data
 
 ladder_minimum = 12000
-ranked_minimum = 0
-filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", ranked_minimum)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", ranked_minimum)]]
+filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", 0)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", 0)]]
 
-data_generator = stream_onehot(buffer_size = 100_000, filters = filters)
+#%%
+# Create a fixed, static validation set via random sampling across the streamed database 
+val_size = 500_000
+X_val, y_val, feature_names = load_random_games(val_size, filters = filters)
+val_ds = TensorDataset(torch.tensor(X_val, dtype = torch.float32), torch.tensor(y_val, dtype = torch.float32))
+
+del X_val # Free up a bit of space
+gc.collect()
+
+#%% 
+# Create model and configs for training as well as the validation loader
+model = architecture(input_dim = len(feature_names)).to(DEVICE)
+
+train_config = TrainConfig(
+    batch_size = 512,
+    max_epochs = 100,
+    patience = 10
+    )
+
+stream_config = DataStreamConfig(buffer_size = 500_000, filters = filters)
+
+val_loader = DataLoader(val_ds, batch_size = train_config.batch_size, shuffle = True)
+
+#%%
+# Save NN details 
+network_name = "NN_test"
+
+# For saving neural network state
+models_dir = root_dir / "modeling/model_states/"
+models_dir.mkdir(parents = True, exist_ok = True)
+save_state_path = Path(models_dir / f"{network_name}.pth")
+
+# Save neural network features (needed because new cards are periodically added to the game)
+features_dir = root_dir / "modeling/model_features/"
+features_dir.mkdir(parents = True, exist_ok = True)
+features_path = Path(features_dir / f"features_{network_name}.pkl")
+
+import pickle
+with open(features_path, "wb") as file : 
+    pickle.dump(list(feature_names), file) # convert feature_names to list so that there aren't pandas versioning issues (e.g. with numpy or Pandas series)
+
+#%%
+# Approach: 
+# epochs -> Buffers -> batches ?
+# Idea - for every epoch, load in each buffer at a time and train
+
+model, history = stream_train_model(model, val_loader, save_state_path, train_config, stream_config, device = DEVICE)
+
+# %%
