@@ -152,7 +152,7 @@ def train_model(model, train_loader, val_loader, save_state_path, config: TrainC
     return model, history
 
 # Training function with early stopping that is for streaming training data from a 
-def stream_train_model(model, val_loader, save_state_path, train_config : TrainConfig, stream_config: DataStreamConfig, device = "cpu") : 
+def stream_train_model(model, val_loader, save_state_path, train_config : TrainConfig, stream_config: DataStreamConfig, p_obscure = None, device = "cpu") : 
 
     if os.path.isfile(save_state_path) : 
         state_dict = torch.load(save_state_path, weights_only = False)
@@ -170,15 +170,25 @@ def stream_train_model(model, val_loader, save_state_path, train_config : TrainC
     epoch = 0
 
     while epoch <= train_config.max_epochs : 
-        
+        if epochs_without_improvement >= train_config.patience :
+            print(f"Early stopping triggered at epoch {epoch}.")
+            break
+
         model.train()
         data_generator = stream_onehot(buffer_size = stream_config.buffer_size, filters = stream_config.filters, levels = stream_config.levels, base_only = stream_config.base_only)
 
-        for buffer in range(1, stream_config.num_buffers + 1) : 
+        for buffer in range(1, stream_config.num_buffers + 1) :
+            if epochs_without_improvement >= train_config.patience :
+                break
+
             epoch += 1
 
             # Create train loader 
             X, y, _ = next(data_generator)
+
+            if p_obscure : # probability that a random element of the data will be set to 0 (thereby obscuring it)
+                X[np.random.random((X.shape)) < p_obscure] = 0 
+
             train_ds = TensorDataset(torch.tensor(X, dtype = torch.float32), torch.tensor(y, dtype = torch.float32))
             train_loader = DataLoader(train_ds, batch_size = train_config.batch_size, shuffle = True)
             
@@ -222,9 +232,6 @@ def stream_train_model(model, val_loader, save_state_path, train_config : TrainC
             else:
                 epochs_without_improvement += 1
 
-            if epochs_without_improvement >= train_config.patience :
-                print(f"Early stopping triggered at epoch {epoch}.")
-                break
 
             torch.save(model.state_dict, save_state_path) 
 

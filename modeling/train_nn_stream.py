@@ -59,7 +59,7 @@ val_loader = DataLoader(val_ds, batch_size = train_config.batch_size, shuffle = 
 
 #%%
 # Save NN details 
-network_name = "NN_test"
+network_name = "NNsym_5Mobsc_12kranked"
 
 # For saving neural network state
 models_dir = root_dir / "modeling/model_states/"
@@ -80,6 +80,7 @@ with open(features_path, "wb") as file :
 # epochs -> Buffers -> batches ?
 # Idea - for every epoch, load in each buffer at a time and train
 
-model, history = stream_train_model(model, val_loader, save_state_path, train_config, stream_config, device = DEVICE)
+p_obscure = 0.5 # use obscured data during training
+model, history = stream_train_model(model, val_loader, save_state_path, train_config, stream_config, device = DEVICE, p_obscure = p_obscure)
 
 # %%
