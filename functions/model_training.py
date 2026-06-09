@@ -30,6 +30,12 @@ class DataStreamConfig() :
         self.num_buffers = np.ceil(self.num_games / buffer_size).astype(np.int64)
         print(f"Number of available games: {self.num_games}, loading in {self.num_buffers} buffers")
 
+class ObscureConfig() : 
+    # Holds properties of obscuring data randomly during training
+    def __init__(self, p_obscure = 0.5, p_partial = 0.5) : 
+        self.p_obscure = p_obscure # probability that any given column will be obscured (set to 0 in onehot)
+        self.p_partial = p_partial # proportion of rows that are partial data (therefore 1-p_row is the proportion of rows that are full data)
+
 # Evaluates neural network model
 def evaluate_model(model, loader, device):
     model.eval()
@@ -152,7 +158,7 @@ def train_model(model, train_loader, val_loader, save_state_path, config: TrainC
     return model, history
 
 # Training function with early stopping that is for streaming training data from a 
-def stream_train_model(model, val_loader, save_state_path, train_config : TrainConfig, stream_config: DataStreamConfig, p_obscure = None, device = "cpu") : 
+def stream_train_model(model, val_loader, save_state_path, train_config : TrainConfig, stream_config: DataStreamConfig, obscure_config: ObscureConfig = None, device = "cpu") : 
 
     if os.path.isfile(save_state_path) : 
         state_dict = torch.load(save_state_path, weights_only = False)
@@ -186,8 +192,10 @@ def stream_train_model(model, val_loader, save_state_path, train_config : TrainC
             # Create train loader 
             X, y, _ = next(data_generator)
 
-            if p_obscure : # probability that a random element of the data will be set to 0 (thereby obscuring it)
-                X[np.random.random((X.shape)) < p_obscure] = 0 
+            if obscure_config : 
+                mask = np.random.random((X.shape)) < obscure_config.p_obscure # Values across the entire matrix are flipped to 0s (obscured) with probability p_obscure
+                mask[np.random.random((X.shape[0], )) > obscure_config.p_partial, :] = False # Rows are protected from this operation at frequency 1-p_partial 
+                X[mask] = 0 
 
             train_ds = TensorDataset(torch.tensor(X, dtype = torch.float32), torch.tensor(y, dtype = torch.float32))
             train_loader = DataLoader(train_ds, batch_size = train_config.batch_size, shuffle = True)
@@ -237,5 +245,6 @@ def stream_train_model(model, val_loader, save_state_path, train_config : TrainC
 
     if best_state is not None:
         model.load_state_dict(best_state)
+        torch.save(model.state_dict, save_state_path) 
 
     return model, history

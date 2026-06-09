@@ -15,18 +15,24 @@ os.chdir(root_dir)
 parquet_dir = Path(os.getcwd() + "/data/parquet")
 
 #%%
-mode = "midladder" # "midladder" or "highskill"
+from datetime import date, timedelta
+
+# Get date a couple weeks ago 
+past_date = date.today() - timedelta(weeks = 1)
+past_date = int(f"{past_date.strftime("%Y%m%d")}000000") # yyyymmddhhmmss
+
+#%%
+mode = "highskill" # "midladder" or "highskill"
 
 if mode == "highskill" : 
 
     ladder_minimum = 12000
-    ranked_minimum = 0
-
     # Get tags from parquet dataset games that meet criteria
 
-    filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", ranked_minimum)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", ranked_minimum)]]
-    tags_raw = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = ["player_tag", "opponent_tag"], filters = filters)
+    filters = [[("game_time", ">", past_date), ("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("game_time", ">", past_date), ("gamemode", "==", "Ranked1v1_NewArena")], [("game_time", ">", past_date), ("gamemode", "==", "Ranked1v1_NewArena2")]]
+    tags_raw = pd.read_parquet(path = parquet_dir, engine = "pyarrow", columns = ["player_tag", "opponent_tag", "game_time"], filters = filters)
     tags_cat = pd.concat([tags_raw["player_tag"], tags_raw["opponent_tag"]])
+    dates = tags_raw["game_time"]
 
 elif mode == "midladder" : 
 
@@ -51,7 +57,7 @@ split_indices = [split * list_len // num_collectors for split in range(num_colle
 
 #%%
 import datetime 
-list_name = f"{datetime.datetime.now().strftime('%Y%m%d')}_{mode}_8000_8500"
+list_name = f"{datetime.datetime.now().strftime('%Y%m%d')}_{mode}"
 
 #%%
 
