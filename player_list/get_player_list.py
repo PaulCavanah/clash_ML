@@ -22,7 +22,7 @@ past_date = date.today() - timedelta(weeks = 1)
 past_date = int(f"{past_date.strftime("%Y%m%d")}000000") # yyyymmddhhmmss
 
 #%%
-mode = "highskill" # "midladder" or "highskill"
+mode = "midladder" # "midladder" or "highskill"
 
 if mode == "highskill" : 
 
@@ -36,8 +36,8 @@ if mode == "highskill" :
 
 elif mode == "midladder" : 
 
-    ladder_minimum = 8000
-    ladder_maximum = 8500
+    ladder_minimum = 7000
+    ladder_maximum = 10000
 
     # Get tags from parquet dataset games that meet criteria
     filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">", ladder_minimum), ("player_trophies", "<", ladder_maximum)]]

@@ -87,7 +87,7 @@ def evaluate_model(model, loader, device):
 def train_model(model, train_loader, val_loader, save_state_path, config: TrainConfig, device) : 
     if os.path.isfile(save_state_path) : 
         state_dict = torch.load(save_state_path, weights_only = False)
-        model.load_state_dict(state_dict())
+        model.load_state_dict(state_dict)
         print("Previous model state loaded")
 
     criterion = nn.BCEWithLogitsLoss()
@@ -149,7 +149,7 @@ def train_model(model, train_loader, val_loader, save_state_path, config: TrainC
             print(f"Early stopping triggered at epoch {epoch}.")
             break
 
-        torch.save(model.state_dict, save_state_path) 
+        torch.save(model.state_dict(), save_state_path) 
 
 
     if best_state is not None:
@@ -162,7 +162,7 @@ def stream_train_model(model, val_loader, save_state_path, train_config : TrainC
 
     if os.path.isfile(save_state_path) : 
         state_dict = torch.load(save_state_path, weights_only = False)
-        model.load_state_dict(state_dict())
+        model.load_state_dict(state_dict)
         print("Previous model state loaded")
 
     criterion = nn.BCEWithLogitsLoss()
@@ -241,10 +241,10 @@ def stream_train_model(model, val_loader, save_state_path, train_config : TrainC
                 epochs_without_improvement += 1
 
 
-            torch.save(model.state_dict, save_state_path) 
+            torch.save(model.state_dict(), save_state_path) 
 
     if best_state is not None:
         model.load_state_dict(best_state)
-        torch.save(model.state_dict, save_state_path) 
+        torch.save(model.state_dict(), save_state_path) 
 
     return model, history

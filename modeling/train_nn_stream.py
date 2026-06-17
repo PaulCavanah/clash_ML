@@ -47,7 +47,7 @@ gc.collect()
 # Create model and configs for training as well as the validation loader
 model = architecture(input_dim = len(feature_names)).to(DEVICE)
 
-train_config = TrainConfig(batch_size = 512, max_epochs = 100, patience = 10)
+train_config = TrainConfig(batch_size = 512, max_epochs = 200, patience = 15)
 stream_config = DataStreamConfig(buffer_size = 10_000_000, filters = filters, base_only = True)
 obscure_config = ObscureConfig(p_obscure = 0.5, p_partial = 0.5)
 
@@ -55,7 +55,7 @@ val_loader = DataLoader(val_ds, batch_size = train_config.batch_size, shuffle = 
 
 #%%
 # Save NN details 
-network_name = "NNsym_60Mobsc_base_12kranked"
+network_name = "NNsym_94Mobscbase_12kranked"
 
 # For saving neural network state
 models_dir = root_dir / "modeling/model_states/"
@@ -72,7 +72,8 @@ with open(features_path, "wb") as file :
     pickle.dump(list(feature_names), file) # convert feature_names to list so that there aren't pandas versioning issues (e.g. with numpy or Pandas series)
 
 #%%
-# Approach: 
+# Train model: 
 model, history = stream_train_model(model, val_loader, save_state_path, train_config, stream_config, obscure_config, device = DEVICE)
+
 
 # %%
