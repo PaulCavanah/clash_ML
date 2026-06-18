@@ -12,19 +12,13 @@ class Logit_in_256_128_64_1(nn.Module) :
 
         self.net = nn.Sequential(
             nn.Linear(input_dim, 256),
-            nn.BatchNorm1d(256),
             nn.ReLU(),
-            nn.Dropout(dropout),
 
             nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
             nn.ReLU(),
-            nn.Dropout(dropout),
 
             nn.Linear(128, 64),
-            nn.BatchNorm1d(64),
             nn.ReLU(),
-            nn.Dropout(dropout),
 
             nn.Linear(64, 1) # raw logit
         )

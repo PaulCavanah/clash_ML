@@ -139,7 +139,7 @@ def stream_onehot(buffer_size = 100_000, levels = False, base_only = False, filt
             # y: player wins
             y = np.array(df_buffer["player_crowns"] > df_buffer["opponent_crowns"])
 
-            yield X, y, feature_names # yields a generator that next() gives each successive buffer's data
+            yield X, y, feature_names
 
             # Prepare for next buffer
             buffer_row_count = 0  
@@ -164,6 +164,28 @@ def stream_onehot(buffer_size = 100_000, levels = False, base_only = False, filt
 
         yield X, y, feature_names
 
+def stream_decks(buffer_size = 100_000, levels = False, base_only = False, filters = None, unique = False) : 
+    # Basically a wrapper around stream_onehot that yields the decks from the dataset
+    # If kwarg unique is True, the decks within each buffer will be unique 
+
+    data_generator = stream_onehot(buffer_size = buffer_size//2, levels = levels, base_only = base_only, filters = filters)
+    X, y, feature_names = next(data_generator, [None, None, None])
+    while X is not None: # There is still data to yield
+        C = len(feature_names) // 2 # number of cards available
+        N = X.shape[0] # number of original games
+        X_cat = np.concatenate([X[:, :C], X[:, C:]], axis = 0) # Concatenate player and opponent
+        y_cat = np.concatenate([y, np.logical_not(y)], axis = 0) # Flip opponent wins 
+        if unique : 
+            nonunique_df = pd.DataFrame(X_cat) 
+            unique_df = nonunique_df.drop_duplicates() # eliminate rows in which the deck is the same
+            X_out = np.array(unique_df) 
+            y_out = y_cat[unique_df.index] # get wins/losses that correspond to unique deck games
+            yield X_out, y_out, feature_names
+        else : 
+            yield X_cat, y_cat, feature_names
+
+        X, y, feature_names = next(data_generator, [None, None, None])
+
 def load_random_games(load_size, filters = None, buffer_size = 500_000, levels = False, base_only = False) : 
     # Get a sample of games from the entire dataset by streaming 
     num_games = pd.read_parquet(path = f"{os.getcwd()}/data/parquet", engine = "pyarrow", columns = ["player_crowns"], filters = filters)["player_crowns"].shape[0] # load a lightweight column to get the game count
@@ -185,19 +207,27 @@ def load_random_games(load_size, filters = None, buffer_size = 500_000, levels =
 
     return X_ss, y_ss, feature_names
 
-def load_player_unique_decks(game_lim = 1000000, levels = False, base_only = False, filters = None) : 
-    # Extension of load_onehot that transforms X to only have decks that are unique to each player and to not have an opponent side
-    # 
-    # kwargs: 
-    #   game_lim = int or None (maximum number of games to load, default = 1,000,000)
-    #   levels = bool (True = levels in place of 1/0 one-hot labels, default = False)
-    #   base_only = bool (True = only base cards, no evo/hero, default = False)
-    #   filters = list (parquet filter format to apply to each loaded file, default = None)
-    # Returns: 
-    #   X = ndarray with shape (num_player_unique_decks, num_features//2) (whether card was present in deck or not, as 1/0 or level/0)
-    #   y = ndarray with shape (num_games, 1) (win/loss)
-    #   feature_names = list (name of each feature) - here, all original feature_names are returned
+def load_decks(num_decks = 1_000_000, levels = False, base_only = False, filters = None, buffer_size = 500_000, unique = False) : 
+    # Load a fixed number of decks using streaming
+    data_generator = stream_decks(buffer_size = buffer_size, filters = filters, levels = levels, base_only = base_only, unique = unique)
+    X, y, feature_names = next(data_generator, [None, None, None])
+    C = len(feature_names) // 2 
 
+    X_decks = np.zeros((0, C), np.uint8)
+    y_decks = np.zeros(0)
+
+    while X is not None : 
+        if X_decks.shape[0] > num_decks : 
+            return X_decks[:num_decks, :], y_decks[:num_decks], feature_names
+
+        X_decks = np.concat([X_decks, X])
+        y_decks = np.concat([y_decks, y])
+
+        X, y, feature_names = next(data_generator, [None, None, None])
+
+def load_player_unique_decks(game_lim = 1_000_000, levels = False, base_only = False, filters = None) : 
+    # Extension of load_random_games that transforms X to only have decks that are unique to each player and to not have an opponent side
+   
     X, y, feature_names, tags = load_onehot(game_lim = game_lim, levels = levels, base_only = base_only, filters = filters, include_tags = True)
 
     C = len(feature_names) // 2 # number of cards available
@@ -301,3 +331,5 @@ def reset_features(X, previous_features, current_features) :
         new_order.append(current_features.index(pf))
     return X[:, new_order]
 
+
+# %%
