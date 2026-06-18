@@ -288,8 +288,8 @@ def stream_train_model_decks(model, val_loader, save_state_path, train_config : 
             N = 2*X_real.shape[0]; C = X_real.shape[1]
             X_random = random_deck(range(C), feature_names, num_decks = N//2, output_format = "OH half")
             print(X_real.shape, X_random.shape)
-            X = np.concat([X_real, X_random], axis = 0) # Decks - half real, half random
-            y = np.concat([np.ones(N//2), np.zeros(N//2)], axis = 0) # Labels - half 1s, half 0s
+            X = np.concatenate([X_real, X_random], axis = 0) # Decks - half real, half random
+            y = np.concatenate([np.ones(N//2), np.zeros(N//2)], axis = 0) # Labels - half 1s, half 0s
 
             if obscure_config : 
                 mask = np.random.random((N, C)) < obscure_config.p_obscure # Values across the entire matrix are flipped to 0s (obscured) with probability p_obscure

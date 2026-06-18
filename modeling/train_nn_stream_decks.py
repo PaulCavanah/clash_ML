@@ -33,21 +33,21 @@ print("Using device: ", DEVICE)
 #%%
 # Set filters for data
 
-ladder_minimum = 12000
+ladder_minimum = 13000
 filters = [[("gamemode", "==", "Ladder"), ("player_trophies", ">" , ladder_minimum)], [("gamemode", "==", "Ranked1v1_NewArena"), ("player_trophies", ">", 0)], [("gamemode", "==", "Ranked1v1_NewArena2"), ("player_trophies", ">", 0)]]
 
 #%%
 # Create a static validation set by getting half random decks and half real decks
-val_size = 100_000 # Half random decks and half real decks 
+val_size = 500_000 # Half random decks and half real decks 
 
 # Get real decks and randomly generated decks 
 X_real, _, feature_names = load_decks(val_size//2, filters = filters, base_only = True, unique = True)
 C = len(feature_names) // 2 
 X_random = random_deck(range(C), feature_names, num_decks = val_size//2, output_format = "OH half")
-X_val = np.concat([X_real, X_random])
+X_val = np.concatenate([X_real, X_random])
 
 # Generate labels: 
-y_val = np.concat([np.ones(val_size//2), np.zeros(val_size//2)])
+y_val = np.concatenate([np.ones(val_size//2), np.zeros(val_size//2)])
 
 val_ds = TensorDataset(torch.tensor(X_val, dtype = torch.float32), torch.tensor(y_val, dtype = torch.float32))
 
@@ -59,14 +59,14 @@ gc.collect()
 model = architecture(input_dim = C).to(DEVICE)
 
 train_config = TrainConfig(batch_size = 512, max_epochs = 100, patience = 10)
-stream_config = DataStreamConfig(buffer_size = 1_000_000, filters = filters, base_only = True, unique = True)
+stream_config = DataStreamConfig(buffer_size = 10_000_000, filters = filters, base_only = True, unique = True)
 obscure_config = ObscureConfig(p_obscure = 0.5, p_partial = 0.5)
 
 val_loader = DataLoader(val_ds, batch_size = train_config.batch_size, shuffle = True)
 
 #%%
 # Save NN details 
-network_name = "NNindist_94Mobscbase_12kranked"
+network_name = "NNindist_35Mobscbase_13kranked"
 
 # For saving neural network state
 models_dir = root_dir / "modeling/model_states/"

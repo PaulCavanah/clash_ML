@@ -220,8 +220,8 @@ def load_decks(num_decks = 1_000_000, levels = False, base_only = False, filters
         if X_decks.shape[0] > num_decks : 
             return X_decks[:num_decks, :], y_decks[:num_decks], feature_names
 
-        X_decks = np.concat([X_decks, X])
-        y_decks = np.concat([y_decks, y])
+        X_decks = np.concatenate([X_decks, X])
+        y_decks = np.concatenate([y_decks, y])
 
         X, y, feature_names = next(data_generator, [None, None, None])
 
